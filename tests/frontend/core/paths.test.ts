@@ -63,9 +63,9 @@ describe("paths over an id-addressed tree", () => {
     const two = at("two.py", { parent: src.id });
     at("elsewhere.py");
 
-    const held = index(viewOf(src, one, two)).under("src");
+    const under = index(viewOf(src, one, two)).under("src");
 
-    expect(held.map((entry) => entry.name).sort()).toEqual(["one.py", "two.py"]);
+    expect(under.map((entry) => entry.name).sort()).toEqual(["one.py", "two.py"]);
   });
 
   it("survives a parent cycle rather than walking forever", () => {

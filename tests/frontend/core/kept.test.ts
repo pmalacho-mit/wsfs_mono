@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { inMemory } from "../../../wsfs_core_suede/frontend/bytes";
 import { mint } from "../../../wsfs_core_suede/frontend/identity";
-import { remembering, type Restored } from "../../../wsfs_core_suede/frontend/kept";
+import { createInMemoryStore, type Restored } from "../../../wsfs_core_suede/frontend/outbox-store";
 import { connect, type Workspace } from "../../../wsfs_core_suede/frontend/workspace";
 import { server, type Fake } from "../fake";
 
@@ -25,8 +25,8 @@ const settle = () => new Promise((done) => setTimeout(done, 60));
  * that walks away -- which is the whole case: the work must reach the server
  * without anybody still holding a promise for it.
  */
-const abandoned = <T extends { settled: Promise<unknown> }>(sent: T): T => {
-  void sent.settled.catch(() => undefined);
+const abandoned = <T extends { response: Promise<unknown> }>(sent: T): T => {
+  void sent.response.catch(() => undefined);
   return sent;
 };
 
@@ -41,22 +41,22 @@ const machine = () => {
   const bytes = inMemory();
 
   const of = (workspace: string, restored?: Restored) => {
-    const held = remembering(restored ?? stores.get(workspace)?.restored());
-    stores.set(workspace, held);
-    return held;
+    const store = createInMemoryStore(restored ?? stores.get(workspace)?.restored());
+    stores.set(workspace, store);
+    return store;
   };
 
   return {
     bytes,
     /** Open a workspace as this machine has it written down. */
     open: (workspace: string, wire: Fake): Workspace => {
-      const held = of(workspace);
+      const store = of(workspace);
       return connect({
         workspace,
         transport: wire,
         bytes,
-        kept: held.kept,
-        restored: held.restored(),
+        outboxStore: store.outboxStore,
+        restored: store.restored(),
         timing: quickly,
       });
     },
@@ -107,7 +107,7 @@ describe("a queue that outlives the page", () => {
      * reconstructed from anywhere else, so it has to reach the server.
      */
     wire.reachable(false);
-    const draft = abandoned(first.keep(entry, "reaching nobody\n"));
+    const draft = abandoned(first.recordDraft(entry, "reaching nobody\n"));
     await settle();
     first.stop();
 
@@ -135,9 +135,9 @@ describe("a queue that outlives the page", () => {
      */
     wire.reachable(false);
     const drafts = [
-      abandoned(first.keep(entry, "first\n")),
-      abandoned(first.keep(entry, "second\n")),
-      abandoned(first.keep(entry, "third\n")),
+      abandoned(first.recordDraft(entry, "first\n")),
+      abandoned(first.recordDraft(entry, "second\n")),
+      abandoned(first.recordDraft(entry, "third\n")),
     ];
     await settle();
     first.stop();
@@ -162,25 +162,25 @@ describe("a queue that outlives the page", () => {
     await settle();
 
     wire.reachable(false);
-    const draft = abandoned(first.keep(entry, "reaching nobody\n"));
+    const draft = abandoned(first.recordDraft(entry, "reaching nobody\n"));
     await settle();
-    expect(first.unsettled([draft.transaction])).toEqual([draft.transaction]);
+    expect(first.unanswered([draft.transaction])).toEqual([draft.transaction]);
     first.stop();
 
     /**
      * And the answer survives the reload too. `recorded` used to be the one
      * thing held only in memory, so a reload made a client understate what the
-     * server could rebuild -- it would call landed work unsettled for ever.
+     * server could rebuild -- it would call landed work unanswered for ever.
      */
     wire.reachable(true);
     const again = here.open("alpha", wire);
     await settle();
     await settle();
-    expect(again.unsettled([draft.transaction])).toEqual([]);
+    expect(again.unanswered([draft.transaction])).toEqual([]);
 
     const later = here.open("alpha", wire);
     await settle();
-    expect(later.unsettled([draft.transaction])).toEqual([]);
+    expect(later.unanswered([draft.transaction])).toEqual([]);
     again.stop();
     later.stop();
   });
@@ -235,7 +235,7 @@ describe("an answer that was current and then was not", () => {
      * next write to that file: the map only holds what an entry is at NOW, so
      * a transaction pruned while current became -- the moment something
      * superseded it -- one that neither the map nor the set could answer for,
-     * and `unsettled` called work that was safely on the server unsettled for
+     * and `unanswered` called work that was safely on the server unanswered for
      * ever.
      */
     const wire = server();
@@ -243,23 +243,23 @@ describe("an answer that was current and then was not", () => {
 
     const workspace = here.open("alpha", wire);
     await settle();
-    await workspace.create("notes.py", "one\n").settled;
+    await workspace.create("notes.py", "one\n").response;
     await settle();
 
     const first = workspace.write("notes.py", "two\n");
-    await first.settled;
+    await first.response;
     await settle();
 
     /** A reconcile, which is where the pruning used to happen. */
     workspace.nudge();
     await settle();
     await settle();
-    expect(workspace.unsettled([first.transaction])).toEqual([]);
+    expect(workspace.unanswered([first.transaction])).toEqual([]);
 
     /** And now a later write moves the file past it. */
-    await workspace.write("notes.py", "three\n").settled;
+    await workspace.write("notes.py", "three\n").response;
     await settle();
-    expect(workspace.unsettled([first.transaction])).toEqual([]);
+    expect(workspace.unanswered([first.transaction])).toEqual([]);
     workspace.stop();
   });
 
@@ -269,19 +269,19 @@ describe("an answer that was current and then was not", () => {
 
     const first = here.open("alpha", wire);
     await settle();
-    await first.create("notes.py", "one\n").settled;
+    await first.create("notes.py", "one\n").response;
     await settle();
     const early = first.write("notes.py", "two\n");
-    await early.settled;
+    await early.response;
     await settle();
-    await first.write("notes.py", "three\n").settled;
+    await first.write("notes.py", "three\n").response;
     await settle();
     first.stop();
 
     const again = here.open("alpha", wire);
     await settle();
     await settle();
-    expect(again.unsettled([early.transaction])).toEqual([]);
+    expect(again.unanswered([early.transaction])).toEqual([]);
     again.stop();
   });
 });

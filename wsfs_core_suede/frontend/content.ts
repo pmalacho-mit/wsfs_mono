@@ -50,18 +50,18 @@ export type Content = {
 const keyed = (entry: Metadata) => entry.content_version ?? undefined;
 
 export const cache = (fetch: Fetch): Content => {
-  const held = new Map<Version, Payload>();
+  const byVersion = new Map<Version, Payload>();
   const byEntry = new Map<Id, Version>();
   const arriving = new Map<Version, Promise<Payload>>();
 
   const cached = (version: Version | undefined) =>
-    version === undefined ? undefined : held.get(version);
+    version === undefined ? undefined : byVersion.get(version);
 
   const fetched = async (entry: Metadata, version: Version) => {
     const already = arriving.get(version);
     if (already) return already;
     const request = fetch(entry.id, version).then((content) => {
-      held.set(version, content);
+      byVersion.set(version, content);
       byEntry.set(entry.id, version);
       arriving.delete(version);
       return content;
@@ -75,11 +75,11 @@ export const cache = (fetch: Fetch): Content => {
   return {
     holding,
     remember: (version, content) => {
-      held.set(version, content);
+      byVersion.set(version, content);
     },
     forget: (entry) => {
       const version = byEntry.get(entry);
-      if (version !== undefined) held.delete(version);
+      if (version !== undefined) byVersion.delete(version);
       byEntry.delete(entry);
     },
     read: async (entry) => {

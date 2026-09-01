@@ -64,11 +64,11 @@ const room = (usage: number, quota = 100): Headroom => ({ usage, quota });
 
 describe("what a sweep may take", () => {
   it("takes payloads nothing names", () => {
-    const kept = mint();
+    const named = mint();
     const garbage = mint();
     const found = collectable(
-      [payload(WORKSPACE, kept, 100, 1), payload(WORKSPACE, garbage, 100, 1)],
-      [row(WORKSPACE, kept)],
+      [payload(WORKSPACE, named, 100, 1), payload(WORKSPACE, garbage, 100, 1)],
+      [row(WORKSPACE, named)],
       5,
     );
     expect(found.map(({ digest }) => digest)).toEqual([garbage]);

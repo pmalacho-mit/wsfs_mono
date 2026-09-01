@@ -66,6 +66,14 @@ tutoring — **this** package imports it, to talk to a model.
 `wsfs_pytutor_suede` is the research feature, and it does not. The two will be
 confused; this paragraph is the answer.
 
+## Reading it
+
+[GUIDE.md](./GUIDE.md) walks the files in the order they make sense in.
+
 ## Testing
 
 See [TESTING.md](./TESTING.md). Nothing in the suite talks to a model.
+
+**Setting the suite up in this repo's own `main` branch?**
+[HANDOFF.md](./HANDOFF.md) is written for that: what to port, what needs a
+consumer app, and the traps that cost time the first time round.

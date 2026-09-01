@@ -39,15 +39,15 @@ const opened = async (shared?: (entry: string) => boolean) => {
 
 describe("a file a shared document speaks for", () => {
   it("cannot be written around", async () => {
-    const held = new Set<string>();
-    const { workspace } = await opened((entry) => held.has(entry));
+    const seen = new Set<string>();
+    const { workspace } = await opened((entry) => seen.has(entry));
     const { entry } = workspace.create("notes.py", "one\n");
     await settle();
 
     /** While nothing holds a document, a script's write is ordinary. */
     expect(() => workspace.write("notes.py", "by a script\n")).not.toThrow();
 
-    held.add(entry);
+    seen.add(entry);
     expect(() => workspace.write("notes.py", "around it\n")).toThrow(
       /shared document/,
     );
@@ -55,19 +55,19 @@ describe("a file a shared document speaks for", () => {
   });
 
   it("names the route that is open", async () => {
-    const held = new Set<string>();
-    const { wire, workspace } = await opened((entry) => held.has(entry));
+    const seen = new Set<string>();
+    const { wire, workspace } = await opened((entry) => seen.has(entry));
     const { entry } = workspace.create("notes.py", "one\n");
     await settle();
-    held.add(entry);
+    seen.add(entry);
 
     /** Which is the one the document itself uses, and it goes through. */
-    await workspace.shares(entry, "typed into the document\n").settled;
+    await workspace.shares(entry, "typed into the document\n").response;
     await settle();
     expect(wire.text(entry)).toBe("typed into the document\n");
 
     /** As does a draft, which is the same document reaching nobody. */
-    await workspace.keep(entry, "reaching nobody\n").settled;
+    await workspace.recordDraft(entry, "reaching nobody\n").response;
     expect(wire.drafts()).toHaveLength(1);
     workspace.stop();
   });
@@ -101,7 +101,7 @@ describe("a token the server never issued", () => {
      * ask again.
      */
     wire.disown(transaction);
-    const answer = await workspace.shares(entry, "two\n").settled;
+    const answer = await workspace.shares(entry, "two\n").response;
     expect(answer.rejected && answer.reason).toBe(UNSOUND);
 
     await settle();
@@ -117,7 +117,7 @@ describe("a token the server never issued", () => {
     await movedOn(wire, entry);
 
     /** The token was real, and is simply no longer current. Rebase, not reset. */
-    const answer = await workspace.shares(entry, "two\n").settled;
+    const answer = await workspace.shares(entry, "two\n").response;
     expect(answer.rejected).toBe(true);
     expect(answer.rejected && answer.reason).not.toBe(UNSOUND);
 

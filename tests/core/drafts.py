@@ -20,7 +20,7 @@ from wsfs_mono.samples.backend.app import MODELS
 from wsfs_mono.wsfs_core_suede.backend.contract import Refusal
 
 
-def kept(response: httpx.Response) -> dict[str, Any]:
+def assert_draft(response: httpx.Response) -> dict[str, Any]:
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["rejected"] is False
@@ -48,7 +48,7 @@ def reasons_for(session: Session, transaction: str) -> list[str]:
 
 async def test_a_draft_does_not_become_the_files_content(api: Api):
     entry, born = await a_file(api)
-    kept(await api.write(entry, born, "before\nkept back\n", draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", draft=True))
 
     assert (await api.content(entry)).json()["content"] == "before\n"
 
@@ -56,14 +56,14 @@ async def test_a_draft_does_not_become_the_files_content(api: Api):
 async def test_a_draft_is_readable_at_its_own_transaction(api: Api):
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nkept back\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", transaction=holding, draft=True))
 
     assert (await api.content(entry, holding)).json()["content"] == "before\nkept back\n"
 
 
 async def test_a_draft_leaves_the_version_where_it_was(api: Api):
     entry, born = await a_file(api)
-    kept(await api.write(entry, born, "before\nkept back\n", draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", draft=True))
 
     held = next(
         one for one in (await api.initialize())["entries"] if one["id"] == entry
@@ -74,7 +74,7 @@ async def test_a_draft_leaves_the_version_where_it_was(api: Api):
 async def test_the_token_a_draft_presented_is_still_the_one_to_present(api: Api):
     """The draft took nothing from the file, so nothing rebased under it."""
     entry, born = await a_file(api)
-    kept(await api.write(entry, born, "before\nkept back\n", draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", draft=True))
 
     acknowledged(await api.write(entry, born, "before\nshared\n"))
     assert (await api.content(entry)).json()["content"] == "before\nshared\n"
@@ -87,7 +87,7 @@ async def test_a_draft_is_not_a_refusal_even_though_it_is_kept_beside_them(
     says the system declined, the other says this client asked."""
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nkept back\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", transaction=holding, draft=True))
 
     assert reasons_for(session, holding) == [Refusal.NOT_SHARED]
 
@@ -104,8 +104,8 @@ async def test_a_refusal_is_still_a_refusal(api: Api, session: Session):
 async def test_two_drafts_from_one_client_are_both_kept(api: Api):
     entry, born = await a_file(api)
     once, twice = api.transaction(), api.transaction()
-    kept(await api.write(entry, born, "before\nonce\n", transaction=once, draft=True))
-    kept(
+    assert_draft(await api.write(entry, born, "before\nonce\n", transaction=once, draft=True))
+    assert_draft(
         await api.write(
             entry, born, "before\nonce\ntwice\n",
             transaction=twice, predecessor=once, draft=True,
@@ -121,14 +121,14 @@ async def test_a_draft_never_reaches_a_watching_client(api: Api):
     version the file does not have."""
     entry, born = await a_file(api)
     before = await api.initialize()
-    kept(await api.write(entry, born, "before\nkept back\n", draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", draft=True))
 
     assert (await api.initialize())["entries"] == before["entries"]
 
 
 async def test_a_draft_from_one_client_is_invisible_to_another(api: Api, other: Api):
     entry, born = await a_file(api)
-    kept(await api.write(entry, born, "before\nkept back\n", draft=True))
+    assert_draft(await api.write(entry, born, "before\nkept back\n", draft=True))
 
     assert (await other.content(entry)).json()["content"] == "before\n"
 
@@ -152,7 +152,7 @@ async def test_a_snapshot_naming_a_draft_is_rebuilt_from_the_server(api: Api):
     """
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nonly mine\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nonly mine\n", transaction=holding, draft=True))
 
     answers = await rebuilt(
         api,
@@ -198,7 +198,7 @@ async def stranded(api: Api) -> list[dict[str, Any]]:
 async def test_a_draft_starts_out_uncleared(api: Api, session: Session):
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
 
     assert cleared_flags(session, holding) == [False]
 
@@ -206,7 +206,7 @@ async def test_a_draft_starts_out_uncleared(api: Api, session: Session):
 async def test_a_draft_is_cleared_when_the_work_has_gone_out(api: Api, session: Session):
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
 
     assert (await clear(api, [holding])).status_code == 204
     assert cleared_flags(session, holding) == [True]
@@ -217,7 +217,7 @@ async def test_clearing_a_draft_does_not_take_it_away(api: Api):
     still name it."""
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
     await clear(api, [holding])
 
     assert (await api.content(entry, holding)).json()["content"] == "before\nmine\n"
@@ -226,7 +226,7 @@ async def test_clearing_a_draft_does_not_take_it_away(api: Api):
 async def test_an_uncleared_draft_is_reported_as_still_only_here(api: Api):
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
 
     waiting = await stranded(api)
     assert [one["transaction"] for one in waiting] == [holding]
@@ -236,7 +236,7 @@ async def test_an_uncleared_draft_is_reported_as_still_only_here(api: Api):
 async def test_a_cleared_draft_is_not_reported(api: Api):
     entry, born = await a_file(api)
     holding = api.transaction()
-    kept(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
+    assert_draft(await api.write(entry, born, "before\nmine\n", transaction=holding, draft=True))
     await clear(api, [holding])
 
     assert await stranded(api) == []

@@ -42,7 +42,7 @@ const BACKOFF_MS = 400;
  * in the panel keeps the panel a list.
  */
 const shown = (told: Told, paths: (entry: string) => string): Turn[] => {
-  const sent = (told.attached ?? []).map((one) => paths(one.entry));
+  const sent = (told.attached ?? []).map((file) => paths(file.entry));
   const turns: Turn[] = [
     { id: `${told.message}:asked`, from: "user", text: told.text, sent },
   ];
@@ -177,7 +177,7 @@ export class Conversation {
     if (asked === "" || this.status !== "ready" || assistant === undefined)
       return;
 
-    const sent = attached.map((one) => one.path);
+    const sent = attached.map((file) => file.path);
     this.status = "submitted";
     const mine = `asking-${this.turns.length}`;
     this.turns = [...this.turns, { id: mine, from: "user", text: asked, sent }];
@@ -246,7 +246,7 @@ export class Conversation {
     this.turns =
       at === -1
         ? [...this.turns, turn]
-        : this.turns.map((held, i) => (i === at ? turn : held));
+        : this.turns.map((existing, i) => (i === at ? turn : existing));
   }
 
   #rename(from: string, to: string) {
@@ -257,6 +257,6 @@ export class Conversation {
 
   #drawn(told: Told[]): Turn[] {
     /** Newest first on the wire, oldest first on screen. */
-    return [...told].reverse().flatMap((one) => shown(one, this.#named));
+    return [...told].reverse().flatMap((turn) => shown(turn, this.#named));
   }
 }

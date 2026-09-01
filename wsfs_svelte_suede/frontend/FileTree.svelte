@@ -149,7 +149,7 @@
     /** Everything strictly beneath `path`, which a folder carries with it. */
     #under(path: Path): [Id, Path][] {
       const dir = path.endsWith("/") ? path : `${path}/`;
-      return [...this.#byId].filter(([, held]) => held.startsWith(dir));
+      return [...this.#byId].filter(([, path]) => path.startsWith(dir));
     }
 
     #remove(id: Id, path: string) {
@@ -188,7 +188,7 @@
       trackUntilSettled: <T extends Submitting>(submission: T) => {
         track(submission);
         const off = untrack.bind(null, submission);
-        submission.settled.then(off, off);
+        submission.response.then(off, off);
         return submission;
       },
     };
@@ -495,9 +495,9 @@
    *
    * The assignment that fills it in happens inside the tree's own event, so
    * it is not one the compiler can see -- and a plain read straight after
-   * clearing it is narrowed to `undefined` and refuses to have a `settled`.
+   * clearing it is narrowed to `undefined` and refuses to have a `response`.
    */
-  const settling = (): Promise<unknown> | undefined => lastSubmitted?.settled;
+  const settling = (): Promise<unknown> | undefined => lastSubmitted?.response;
 
   const workspaceToTreeOperation = {
     removed: (entry: Id): Tree.BatchOperation | undefined => {
@@ -543,7 +543,7 @@
   const applyWorkspaceChanges = Object.assign(
     (changes: readonly Change[]) => {
       const removed = new Set<Id>();
-      const kept = new Set<Id>();
+      const modified = new Set<Id>();
 
       for (const change of changes) {
         const seen =
@@ -551,13 +551,13 @@
         if (seen || change.kind === "written") continue;
         if (change.kind === "removed" || change.kind === "vanished")
           removed.add(change.entry);
-        else kept.add(change.entry);
+        else modified.add(change.entry);
       }
-      if (removed.size === 0 && kept.size === 0) return;
+      if (removed.size === 0 && modified.size === 0) return;
 
       const operations = [
         ...[...removed].map(workspaceToTreeOperation.removed),
-        ...[...kept].map(workspaceToTreeOperation.modified),
+        ...[...modified].map(workspaceToTreeOperation.modified),
         ...workspaceToTreeOperation.materialized(),
       ].filter((operation) => operation !== undefined);
 
@@ -606,7 +606,7 @@
    */
   const warmOnceMade = async (submission: Submitting & { entry: Id }) => {
     try {
-      if ((await submission.settled).rejected) return;
+      if ((await submission.response).rejected) return;
       await warmRoom(workspace, submission.entry);
     } catch {
       /* Opening the file is slower, and only the first time. */
@@ -769,7 +769,7 @@
    * the other answer, and it is the one that can overwrite somebody's work.
    */
   const placing = () => {
-    const settled = new Map<string, string>();
+    const chosenNames = new Map<string, string>();
     // Nothing in the tree yet, because nothing has been added yet -- so the
     // names this upload has already spoken for are only written down here.
     const claimed = new Set<string>();
@@ -777,10 +777,10 @@
       const [head = "", ...rest] = path.split("/");
       const inFolder = rest.length > 0;
       const key = inFolder ? `${head}/` : head;
-      let free = settled.get(key);
+      let free = chosenNames.get(key);
       if (free === undefined) {
         free = vacant(key, claimed);
-        settled.set(key, free);
+        chosenNames.set(key, free);
         for (const spelling of bothSpellings(free)) claimed.add(spelling);
       }
       return inFolder ? `${free}${rest.join("/")}` : free;
@@ -799,15 +799,15 @@
   const receive = async (files: readonly File[]) => {
     if (files.length === 0) return;
     const place = placing();
-    const landing = (await chosen(files)).map((one) => ({
-      ...one,
-      path: place(one.path),
+    const landing = (await chosen(files)).map((file) => ({
+      ...file,
+      path: place(file.path),
     }));
 
     // One at a time, and waiting: see `lastSubmitted`. The ROW appears at
     // once either way -- what is being waited for is the server's answer,
     // and only so that what goes inside has somewhere to go.
-    for (const folder of foldersFor(landing.map((one) => one.path))) {
+    for (const folder of foldersFor(landing.map((file) => file.path))) {
       if (tree.item(folder) !== null) continue;
       lastSubmitted = undefined;
       tree.add(folder);
@@ -1027,14 +1027,14 @@
     if (readonly) return [{ label: READ_ONLY, note: true }, keeping];
 
     const offered = ContextMenu.actions({ model: tree, item, context: open });
-    const withheld = new Set<string>();
+    const notOffered = new Set<string>();
     if (item.kind !== "directory")
-      for (const one of containing) withheld.add(one);
+      for (const label of containing) notOffered.add(label);
     if (spokenFor(item.path)) {
-      withheld.add("Rename");
-      withheld.add("Delete");
+      notOffered.add("Rename");
+      notOffered.add("Delete");
     }
-    const standard = offered.filter((action) => !withheld.has(action.label));
+    const standard = offered.filter((action) => !notOffered.has(action.label));
     const destructive = standard.findIndex(
       (action) => !ContextMenu.isNote(action) && action.danger === true,
     );

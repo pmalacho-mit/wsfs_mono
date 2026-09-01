@@ -25,7 +25,7 @@
   import FileTree, {
     Model as FileTreeModel,
   } from "$svelte/FileTree.svelte";
-  import { drivable } from "./harness/liveblocks";
+  import { baseUrl, drivable } from "./harness/liveblocks";
   import {
     alongside,
     clickRow,
@@ -34,10 +34,14 @@
     rowFor,
     until,
     type Client,
-  } from "./harness/testing.svelte";
+    ADA,
+  BACKEND,
+  asUser,
+} from "./harness/testing.svelte";
 
   /** A real room, because the shell will not show an editor without one. */
   const live = createClient({
+    baseUrl: baseUrl(),
     authEndpoint: async (asked?: string) => {
       const answer = await fetch(
         `/liveblocks/token?rooms=${encodeURIComponent(asked ?? "")}`,
@@ -88,7 +92,7 @@
     harness.onAbort(() => workspace.dispose());
 
     await workspace.workspace.create("tutored.py", "def add(a, b):\n    return a - b\n")
-      .settled;
+      .response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -206,9 +210,13 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={liveRoom.entering}
-          onEditor={(editor) => ((p.editor = editor), { dispose: () => {} })}
+          editor={{
+            onEditor: (monaco) => ((p.editor = monaco), { dispose: () => {} }),
+          }}
         />
       {/if}
     </div>

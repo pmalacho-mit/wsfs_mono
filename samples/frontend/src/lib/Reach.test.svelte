@@ -11,6 +11,7 @@
   import { Sweater } from "sweater-vest-suede";
   import { createClient } from "@liveblocks/client";
   import { getYjsProviderForRoom } from "@liveblocks/yjs";
+  import { baseUrl } from "./harness/liveblocks";
 
   import {
     agree,
@@ -35,6 +36,7 @@
 
   const clientAs = (email: string) =>
     createClient({
+      baseUrl: baseUrl(),
       authEndpoint: async (room) => {
         const answer = await fetch(
           `/liveblocks/token?rooms=${encodeURIComponent(room ?? "")}`,

@@ -386,13 +386,13 @@ async def clear(
     """
     if not transactions:
         return
-    for kept in models.refused_content:
+    for table in models.refused_content:
         rows = (
             await session.exec(
-                select(kept).where(
-                    col(kept.workspace_id) == workspace_id,
-                    col(kept.transaction).in_(transactions),
-                    col(kept.reason) == Refusal.NOT_SHARED,
+                select(table).where(
+                    col(table.workspace_id) == workspace_id,
+                    col(table.transaction).in_(transactions),
+                    col(table.reason) == Refusal.NOT_SHARED,
                 )
             )
         ).all()
@@ -414,16 +414,16 @@ async def stranded(
     from .contract import Stranded
 
     waiting: list[Any] = []
-    for kept in models.refused_content:
+    for table in models.refused_content:
         rows = (
             await session.exec(
-                select(kept)
+                select(table)
                 .where(
-                    col(kept.workspace_id) == workspace_id,
-                    col(kept.reason) == Refusal.NOT_SHARED,
-                    col(kept.cleared) == False,  # noqa: E712 -- SQL, not Python
+                    col(table.workspace_id) == workspace_id,
+                    col(table.reason) == Refusal.NOT_SHARED,
+                    col(table.cleared) == False,  # noqa: E712 -- SQL, not Python
                 )
-                .order_by(desc(col(kept.timestamp)))
+                .order_by(desc(col(table.timestamp)))
             )
         ).all()
         waiting.extend(

@@ -45,7 +45,10 @@
     rowFor,
     until,
     type Client,
-  } from "./harness/testing.svelte";
+    ADA,
+  BACKEND,
+  asUser,
+} from "./harness/testing.svelte";
   import {
     asPicked,
     choose,
@@ -78,8 +81,8 @@
   /** The text of a held file, or nothing if the client has not heard of it. */
   const heldBy = (client: Client, path: string) => {
     try {
-      const held = client.workspace.holding(path);
-      return held?.kind === "text" ? (held.text ?? "") : "";
+      const content = client.workspace.holding(path);
+      return content?.kind === "text" ? (content.text ?? "") : "";
     } catch {
       return undefined;
     }
@@ -111,7 +114,7 @@
 
   /** What an archive holds, keyed by name, for an assertion to read. */
   const byName = (members: { name: string; text: string }[]) =>
-    Object.fromEntries(members.map((one) => [one.name, one.text]));
+    Object.fromEntries(members.map((member) => [member.name, member.text]));
 
   /**
    * A report card gives each test a slice of one screen. The capture is taken
@@ -132,7 +135,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("keepsake.md", "remember this\n").settled;
+    await workspace.workspace.create("keepsake.md", "remember this\n").response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -140,8 +143,8 @@
       () => drawn(root).join(" | "),
     );
 
-    const kept = saving();
-    harness.onAbort(kept.stop);
+    const downloads = saving();
+    harness.onAbort(downloads.stop);
 
     await menuOn(rowFor(root, "keepsake.md")!);
     // Captured with the menu open: the action a file's menu now carries.
@@ -150,10 +153,10 @@
       await userEvent.click(action(root, "Download"));
     });
 
-    await until("a copy to be offered", () => kept.saved().length === 1);
-    kept.stop();
+    await until("a copy to be offered", () => downloads.saved().length === 1);
+    downloads.stop();
 
-    const [copy] = kept.saved();
+    const [copy] = downloads.saved();
     harness.expect(copy!.name).toBe("keepsake.md");
     harness.expect(await copy!.blob.text()).toBe("remember this\n");
   }}
@@ -177,12 +180,12 @@
     harness.onAbort(() => workspace.dispose());
 
     const client = workspace.workspace;
-    await client.folder("bundle").settled;
-    await client.create("bundle/one.py", "print('one')\n").settled;
-    await client.create("bundle/two.txt", "two\n").settled;
+    await client.folder("bundle").response;
+    await client.create("bundle/one.py", "print('one')\n").response;
+    await client.create("bundle/two.txt", "two\n").response;
     // An empty folder has no file to imply it, which is the case an archive
     // built from paths alone quietly loses.
-    await client.folder("bundle/hollow").settled;
+    await client.folder("bundle/hollow").response;
 
     const { root } = await harness.definition("root");
     await until(
@@ -191,31 +194,31 @@
       () => drawn(root).join(" | "),
     );
 
-    const kept = saving();
-    harness.onAbort(kept.stop);
+    const downloads = saving();
+    harness.onAbort(downloads.stop);
 
     await menuOn(rowFor(root, "bundle")!);
     await harness.withUserFocus(async (userEvent) => {
       await userEvent.click(action(root, "Download"));
     });
 
-    await until("an archive to be offered", () => kept.saved().length === 1);
-    kept.stop();
+    await until("an archive to be offered", () => downloads.saved().length === 1);
+    downloads.stop();
 
-    const [copy] = kept.saved();
+    const [copy] = downloads.saved();
     harness.expect(copy!.name).toBe("bundle.zip");
 
-    const held = byName(await unzipped(copy!.blob));
+    const contents = byName(await unzipped(copy!.blob));
     // The folder itself is in there, so extracting makes one directory
     // rather than scattering its contents.
-    harness.expect(Object.keys(held).sort()).toEqual([
+    harness.expect(Object.keys(contents).sort()).toEqual([
       "bundle/",
       "bundle/hollow/",
       "bundle/one.py",
       "bundle/two.txt",
     ]);
-    harness.expect(held["bundle/one.py"]).toBe("print('one')\n");
-    harness.expect(held["bundle/two.txt"]).toBe("two\n");
+    harness.expect(contents["bundle/one.py"]).toBe("print('one')\n");
+    harness.expect(contents["bundle/two.txt"]).toBe("two\n");
   }}
 >
   {#snippet vest(p: Pocket)}
@@ -237,9 +240,9 @@
     harness.onAbort(() => workspace.dispose());
 
     const client = workspace.workspace;
-    await client.create("manifest.md", "everything\n").settled;
-    await client.folder("vault").settled;
-    await client.create("vault/deep.txt", "down here\n").settled;
+    await client.create("manifest.md", "everything\n").response;
+    await client.folder("vault").response;
+    await client.create("vault/deep.txt", "down here\n").response;
 
     const { root } = await harness.definition("root");
     await until(
@@ -248,8 +251,8 @@
       () => drawn(root).join(" | "),
     );
 
-    const kept = saving();
-    harness.onAbort(kept.stop);
+    const downloads = saving();
+    harness.onAbort(downloads.stop);
 
     await menuOnEmptySpace(region(root, "tree")!);
     // Captured with the menu open: the four actions the root now offers.
@@ -260,29 +263,29 @@
     await harness.withUserFocus(async (userEvent) => {
       await userEvent.click(action(root, "Download"));
     });
-    await until("an archive to be offered", () => kept.saved().length === 1);
+    await until("an archive to be offered", () => downloads.saved().length === 1);
 
-    const fromMenu = kept.saved()[0]!;
+    const fromMenu = downloads.saved()[0]!;
     harness.expect(fromMenu.name).toBe("workspace.zip");
-    const held = byName(await unzipped(fromMenu.blob));
+    const contents = byName(await unzipped(fromMenu.blob));
     // At the top level, because the workspace has no name to nest under.
-    harness.expect(Object.keys(held).sort()).toEqual([
+    harness.expect(Object.keys(contents).sort()).toEqual([
       "manifest.md",
       "vault/",
       "vault/deep.txt",
     ]);
-    harness.expect(held["vault/deep.txt"]).toBe("down here\n");
+    harness.expect(contents["vault/deep.txt"]).toBe("down here\n");
 
     // And the button under the tree is the same gesture, not a second one.
     await harness.withUserFocus(async (userEvent) => {
       await userEvent.click(control(root, "Download"));
     });
-    await until("a second archive", () => kept.saved().length === 2);
-    kept.stop();
+    await until("a second archive", () => downloads.saved().length === 2);
+    downloads.stop();
 
-    const fromButton = kept.saved()[1]!;
+    const fromButton = downloads.saved()[1]!;
     harness.expect(fromButton.name).toBe("workspace.zip");
-    harness.expect(byName(await unzipped(fromButton.blob))).toEqual(held);
+    harness.expect(byName(await unzipped(fromButton.blob))).toEqual(contents);
   }}
 >
   {#snippet vest(p: Pocket)}
@@ -305,7 +308,7 @@
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
     // One entry, so there is empty tree below it to open the root menu on.
-    await workspace.workspace.create("existing.md", "").settled;
+    await workspace.workspace.create("existing.md", "").response;
     const { root } = await harness.definition("root");
     await until(
       "the first entry is drawn",
@@ -412,7 +415,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("clash.md", "the original\n").settled;
+    await workspace.workspace.create("clash.md", "the original\n").response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -463,9 +466,9 @@
     harness.onAbort(() => workspace.dispose());
 
     const client = workspace.workspace;
-    await client.folder("outer").settled;
-    await client.folder("outer/inner").settled;
-    await client.create("outer/inner/leaf.py", "leaf\n").settled;
+    await client.folder("outer").response;
+    await client.folder("outer/inner").response;
+    await client.create("outer/inner/leaf.py", "leaf\n").response;
 
     const { root } = await harness.definition("root");
     await until(
@@ -512,7 +515,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("edge.md", "").settled;
+    await workspace.workspace.create("edge.md", "").response;
     const { root } = await harness.definition("root");
     await until("the three regions", laidOut(root), () =>
       regions(root).join(" | "),
@@ -589,6 +592,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />

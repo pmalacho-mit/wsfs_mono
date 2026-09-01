@@ -18,7 +18,7 @@ services:
     build:
       context: ..
       dockerfile: ./tests/Dockerfile
-    command: ["python", "-m", "wsfs_suede.samples.backend.serve"]
+    command: ["python", "-m", "wsfs_mono.samples.backend.serve"]
     working_dir: /app
     network_mode: host
     environment:
@@ -29,9 +29,17 @@ services:
       PYTHONPATH: /app
       PORT: 8099
       # Minted into per-user room tokens by /liveblocks/token. Never reaches a
-      # browser. The value here is a placeholder the developer's proxy swaps
-      # for the real key on the way out; a real deployment sets the real one.
-      LIVEBLOCKS_SECRET_KEY: LIVEBLOCKS__SECRET__KEY
+      # browser. The default is a placeholder the developer's proxy swaps for
+      # the real key on the way out; a real deployment sets the real one.
+      #
+      # OVERRIDABLE, so the same file serves a local sync engine. Liveblocks
+      # open-sourced it: `npx liveblocks dev --port 1153` mints `sk_localdev`
+      # and answers the same REST API, which is what makes the room suites
+      # runnable without a hosted account. See docs/GUIDE.md.
+      LIVEBLOCKS_SECRET_KEY: ${LIVEBLOCKS_SECRET_KEY:-LIVEBLOCKS__SECRET__KEY}
+      # Where that key is spent. Unset means the hosted service, so a real
+      # deployment says nothing here and nothing changes for it.
+      LIVEBLOCKS_BASE_URL: ${LIVEBLOCKS_BASE_URL:-}
     # The model's key, from the developer's own `.env` -- which is gitignored,
     # and read at RUN time rather than copied into the image, so a key never
     # lands in a layer anybody could push. Optional: with no file and no key
@@ -41,13 +49,18 @@ services:
       - path: ../.env
         required: false
     # Live source, so swapping revisions needs a restart rather than a rebuild
-    # -- which is what makes a before/after measurement the same image. Point
-    # WSFS_RELEASE at another checkout to serve it instead.
+    # -- which is what makes a before/after measurement the same image. ONE
+    # MOUNT PER PACKAGE, the same list `tests/compose.yml` carries: after the
+    # split there is no single directory holding them all, and a mount of a
+    # path that no longer exists is a silently empty directory rather than an
+    # error.
     volumes:
-      - ${WSFS_RELEASE:-../release}:/app/wsfs_suede/release:ro
-      - ../wsfs_suede__sqlmodel_utils_suede:/app/wsfs_suede/wsfs_suede__sqlmodel_utils_suede:ro
-      - ../wsfs_suede__pytutor_llms_suede:/app/wsfs_suede/wsfs_suede__pytutor_llms_suede:ro
-      - ../samples:/app/wsfs_suede/samples:ro
+      - ../wsfs_core_suede:/app/wsfs_mono/wsfs_core_suede:ro
+      - ../wsfs_assistant_suede:/app/wsfs_mono/wsfs_assistant_suede:ro
+      - ../wsfs_pytutor_suede:/app/wsfs_mono/wsfs_pytutor_suede:ro
+      - ../sqlmodel_utils_suede:/app/wsfs_mono/sqlmodel_utils_suede:ro
+      - ../pytutor_llms_suede:/app/wsfs_mono/pytutor_llms_suede:ro
+      - ../samples:/app/wsfs_mono/samples:ro
     depends_on:
       sample-db:
         condition: service_healthy

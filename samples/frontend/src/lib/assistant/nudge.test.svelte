@@ -55,12 +55,12 @@
      * settings the test wants rather than the ones a term wants.
      */
     watch(over: Partial<Settings> = {}) {
-      const held = new Stuck({
+      const withheld = new Stuck({
         settings: { ...DEFAULTS, ...over },
         offer: (episode, forMs) =>
           this.nudge.offer(() => void this.ask(becauseOf(episode)), forMs),
       });
-      return held;
+      return withheld;
     }
 
     /** What the workspace does when a run fails, minus the workspace. */
@@ -264,7 +264,7 @@
 
     expect(watching.episodes.at(-1)!.became).toBe("held back by the cooldown");
     expect(
-      watching.episodes.filter((one) => one.became === "offered"),
+      watching.episodes.filter((episode) => episode.became === "offered"),
       "one prompt, not two",
     ).toHaveLength(1);
   }}

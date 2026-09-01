@@ -32,7 +32,10 @@ import {
   type TreeThemeInput,
 } from "@pierre/trees";
 import TreeComponent from "./Tree.svelte";
-import ContextMenuComponent, { standardActions } from "./ContextMenu.svelte";
+import ContextMenuComponent, {
+  isNote as isMenuNote,
+  standardActions,
+} from "./ContextMenu.svelte";
 import { Model as TreeModel } from "./model.svelte";
 import { entries as entryMutations } from "./entries";
 import type { Props as TreeProps } from "./Tree.svelte";
@@ -116,6 +119,7 @@ export namespace Tree {
 export const ContextMenu = {
   Component: ContextMenuComponent,
   actions: standardActions,
+  isNote: isMenuNote,
 };
 
 export namespace ContextMenu {

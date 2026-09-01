@@ -154,8 +154,8 @@
     const path = `${scenario}.py`;
 
     if (playing("ada")) {
-      const { entry, settled } = client.workspace.create(path, content);
-      await settled;
+      const { entry, response } = client.workspace.create(path, content);
+      await response;
       await announce(key, entry);
     }
     const entry = await awaiting(key);
@@ -241,7 +241,7 @@
       await client.open(entry);
       client.type(entry, "written before grace ever looked\n");
       const stored = await client.store(entry);
-      if (stored.held)
+      if (stored.withheld)
         throw new Error(`the room would not store: ${stored.why}`);
       harness.expect(stored.rejected).toBe(false);
       await announce(step(id, "latejoin", "stored"));
@@ -316,7 +316,7 @@
       /** Grace does NOT open it -- she writes the way a script would. */
       await awaiting(step(id, "around", "open"));
       await client.workspace.write("around.py", "one\nwritten by a script\n")
-        .settled;
+        .response;
       await announce(step(id, "around", "written"));
       pocket.note = "wrote around the room";
     }
@@ -361,8 +361,8 @@
      * them are holding.
      */
     const stored = await client.store(entry);
-    harness.expect(stored.held).toBe(false);
-    pocket.note = stored.held
+    harness.expect(stored.withheld).toBe(false);
+    pocket.note = stored.withheld
       ? stored.why
       : stored.rejected
         ? "lost the swap"
@@ -505,28 +505,28 @@
         5_000,
       );
       harness.expect(client.trouble(entry)?.passing).toBe(true);
-      harness.expect(client.trouble(entry)?.says).toBe("not reaching anybody");
+      harness.expect(client.trouble(entry)?.message).toBe("not reaching anybody");
 
-      const held = await client.store(entry);
-      if (!held.held)
+      const withheld = await client.store(entry);
+      if (!withheld.withheld)
         throw new Error(
           `stored anyway -- speaks=${client.speaks(entry)} attached=${client.attached(entry)}`,
         );
       if (client.speaks(entry))
         throw new Error(
-          `still speaking while away -- attached=${client.attached(entry)} why=${held.why}`,
+          `still speaking while away -- attached=${client.attached(entry)} why=${withheld.why}`,
         );
-      pocket.note = held.why;
+      pocket.note = withheld.why;
 
       /**
        * Held from the FILE, not from the server. The work is durable the
        * moment it is typed, so there is nothing waiting to be retried -- and
        * it can be read back at the transaction it was kept under.
        */
-      if (!held.held || held.draft === null)
+      if (!withheld.withheld || withheld.draft === null)
         throw new Error("nothing was kept");
       harness
-        .expect(await client.reads(entry, held.draft))
+        .expect(await client.reads(entry, withheld.draft))
         .toBe(client.text(entry));
       harness.expect(await client.reads(entry)).not.toContain("ada while away");
 
@@ -546,7 +546,7 @@
 
       /** And now it may -- the others are holding the same text by then. */
       const stored = await client.store(entry);
-      if (stored.held) throw new Error(`still held: ${stored.why}`);
+      if (stored.withheld) throw new Error(`still withheld: ${stored.why}`);
       harness.expect(stored.rejected).toBe(false);
       await announce(step(id, "held", "stored"));
     } else {
@@ -638,7 +638,7 @@
     await until("the room to speak again", () => client.speaks(entry));
     if (playing("ada")) {
       const stored = await client.store(entry);
-      if (stored.held)
+      if (stored.withheld)
         throw new Error(`the room would not store: ${stored.why}`);
       await announce(step(id, "bothlapse", "stored"));
     } else {
@@ -715,9 +715,9 @@
        * stored -- nobody chose that, it just happened to them.
        */
       const ended = client.replacement(entry);
-      if (ended?.kept == null)
+      if (ended?.savedAs == null)
         throw new Error("stood down without keeping the text");
-      harness.expect(await client.reads(entry, ended.kept)).toBe("readable\n");
+      harness.expect(await client.reads(entry, ended.savedAs)).toBe("readable\n");
 
       /** Not corrupted, and not repaired: the document is left as it was. */
       harness.expect(client.text(entry)).toBe("readable\n");
@@ -725,8 +725,8 @@
       harness.expect(client.replacement(entry)?.mime).toBe("image/png");
 
       /** And it may not write its stale text back over the bytes. */
-      const held = await client.store(entry);
-      harness.expect(held.held).toBe(true);
+      const withheld = await client.store(entry);
+      harness.expect(withheld.withheld).toBe(true);
     } else {
       /** Grace never opens it. She writes bytes the way a kernel would. */
       await awaiting(step(id, "binary", "open"));
@@ -782,7 +782,7 @@
       client.type(entry, client.text(entry) + "ada wrote this\n");
       const looking = client.text(entry);
       const stored = await client.store(entry);
-      if (stored.held)
+      if (stored.withheld)
         throw new Error(`the room would not store: ${stored.why}`);
       harness.expect(stored.rejected).toBe(false);
 
@@ -795,31 +795,31 @@
           `token=${client.token(entry)} wanted=${stored.transaction} ` +
           /**
            * The one question that splits the two explanations. If the
-           * transaction is still unsettled, its confirming event never
+           * transaction is still unanswered, its confirming event never
            * evicted it from the outbox -- a delivery problem. If it has
            * settled and the token still has not moved, the event arrived and
            * the view did not follow it -- a different bug entirely.
            */
-          `unsettled=${JSON.stringify(client.workspace.unsettled([stored.transaction]))} ` +
+          `unanswered=${JSON.stringify(client.workspace.unanswered([stored.transaction]))} ` +
           /**
-           * `unsettled` reads the CONFIRMED map; `token` reads the EFFECTIVE
+           * `unanswered` reads the CONFIRMED map; `token` reads the EFFECTIVE
            * view. When the first says the transaction landed and the second
            * does not show it, the two disagree -- and the only way to tell
            * "it landed on another entry" from "this entry's view is stale" is
            * to look at every entry at once.
            */
           `entries=${JSON.stringify(
-            [...client.workspace.entries().entries()].map(([id, held]) => ({
+            [...client.workspace.entries().entries()].map(([id, entry]) => ({
               id: id.slice(0, 8),
-              content: held.content_version?.slice(0, 8) ?? null,
-              name: held.name,
+              content: entry.content_version?.slice(0, 8) ?? null,
+              name: entry.name,
             })),
           )}`,
       );
       const taken = [client.snapshot(entry)];
 
-      /** Empty is what makes it portable -- see `Workspace.unsettled`. */
-      harness.expect(client.unsettled(taken)).toEqual([]);
+      /** Empty is what makes it portable -- see `Workspace.unanswered`. */
+      harness.expect(client.unanswered(taken)).toEqual([]);
       await announce(step(id, "rebuild", "snapped"));
 
       /** Now let the file move on underneath the snapshot. */
@@ -845,7 +845,7 @@
       await until("the room to speak", () => client.speaks(entry));
       client.type(entry, client.text(entry) + "grace moved it on\n");
       const stored = await client.store(entry);
-      if (stored.held)
+      if (stored.withheld)
         throw new Error(`the room would not store: ${stored.why}`);
       await announce(step(id, "rebuild", "moved"));
       pocket.note = "moved the file on";
@@ -910,7 +910,7 @@
       /** And once it is back, it reaches everybody the ordinary way. */
       await until("the room to speak again", () => reopened.speaks(entry));
       const stored = await reopened.store(entry);
-      if (stored.held) throw new Error(`would not store: ${stored.why}`);
+      if (stored.withheld) throw new Error(`would not store: ${stored.why}`);
       await announce(step(id, "keeps", "stored"));
       await reopened.take(entry);
       await reopened.rebuildable();
@@ -978,7 +978,7 @@
 
       await until("the room to speak", () => second.speaks(entry));
       const stored = await second.store(entry);
-      if (stored.held)
+      if (stored.withheld)
         throw new Error(`the second tab would not store: ${stored.why}`);
       await announce(step(id, "twotabs", "stored"));
 
@@ -1040,15 +1040,15 @@
 
       const ended = client.replacement(entry);
       harness.expect(ended?.mime).toBe(null);
-      if (ended?.kept == null)
+      if (ended?.savedAs == null)
         throw new Error("the file went and took the work with it");
-      harness.expect(await client.reads(entry, ended.kept)).toBe(showing);
+      harness.expect(await client.reads(entry, ended.savedAs)).toBe(showing);
       harness.expect(client.speaks(entry)).toBe(false);
       pocket.note = "stood down, work kept";
       pocket.text = showing;
     } else {
       await awaiting(step(id, "deleted", "open"));
-      await client.workspace.remove("deleted.py").settled;
+      await client.workspace.remove("deleted.py").response;
       await announce(step(id, "deleted", "gone"));
       pocket.note = "deleted it";
     }
@@ -1192,7 +1192,7 @@
       await until("the room to speak", () => client.speaks(entry));
       client.type(entry, client.text(entry) + "grace that afternoon\n");
       const stored = await client.store(entry);
-      if (stored.held) throw new Error(`would not store: ${stored.why}`);
+      if (stored.withheld) throw new Error(`would not store: ${stored.why}`);
       await announce(step(id, "later", "moved"));
       pocket.note = "had it to herself";
       await client.take(entry);
@@ -1228,7 +1228,7 @@
     await awaiting(step(id, "renamed", `open-${other()}`));
 
     if (playing("grace")) {
-      await client.workspace.move("renamed.py", "renamed-again.py").settled;
+      await client.workspace.move("renamed.py", "renamed-again.py").response;
       await announce(step(id, "renamed", "moved"));
     } else {
       await awaiting(step(id, "renamed", "moved"));
@@ -1240,7 +1240,7 @@
       await until("the room to speak", () => client.speaks(entry));
       client.type(entry, client.text(entry) + "typed after the rename\n");
       const stored = await client.store(entry);
-      if (stored.held)
+      if (stored.withheld)
         throw new Error(`the rename took the room: ${stored.why}`);
       pocket.note = "same room, new name";
       pocket.text = client.text(entry);
@@ -1297,8 +1297,8 @@
       client.type(entry, client.text(entry) + "sent the long way round\n");
 
       /** Held from the file, kept as a draft, and handed to the host. */
-      const held = await client.store(entry);
-      harness.expect(held.held).toBe(true);
+      const withheld = await client.store(entry);
+      harness.expect(withheld.withheld).toBe(true);
       await announce(step(id, "relay", "handed"));
 
       await awaiting(step(id, "relay", "seen"));
@@ -1375,7 +1375,7 @@
 
       await until("the room to speak", () => client.speaks(entry));
       const stored = await client.store(entry);
-      if (stored.held) throw new Error(`would not store: ${stored.why}`);
+      if (stored.withheld) throw new Error(`would not store: ${stored.why}`);
       await announce(step(id, "closed", "stored"));
     } else {
       await client.open(entry);
@@ -1424,11 +1424,11 @@
     const id = await workspace();
     const client = await Collaborator.opened(me(), id);
     harness.onAbort(() => client.dispose());
-    const { entry, settled } = client.workspace.create(
+    const { entry, response } = client.workspace.create(
       "outlived.py",
       "start\n",
     );
-    await settled;
+    await response;
 
     /**
      * The server goes. What is typed now is answered by nobody, so it stays in
@@ -1440,7 +1440,7 @@
       "outlived.py",
       "start\nqueued while away\n",
     );
-    void queued.settled.catch(() => undefined);
+    void queued.response.catch(() => undefined);
     await new Promise((carry) => setTimeout(carry, 500));
 
     /** And the tab goes. Nothing in memory survives this; the store does. */
@@ -1458,10 +1458,10 @@
     );
     harness.expect(said).toContain("queued while away");
 
-    /** And it is not merely on the server -- it is settled, so it is portable. */
+    /** And it is not merely on the server -- it is response, so it is portable. */
     await until(
       "the answer to be written down too",
-      () => again.workspace.unsettled([queued.transaction]).length === 0,
+      () => again.workspace.unanswered([queued.transaction]).length === 0,
       15_000,
     );
     pocket.text = said;
@@ -1528,7 +1528,7 @@
       /** And this client, which can reach the server, is the one that stores it. */
       await until("the room to speak", () => client.speaks(entry));
       const stored = await client.store(entry);
-      if (stored.held) throw new Error(`would not store: ${stored.why}`);
+      if (stored.withheld) throw new Error(`would not store: ${stored.why}`);
       await announce(step(id, "roomonly", "stored"));
       pocket.note = "carried it to the file on her behalf";
     }
@@ -1592,12 +1592,12 @@
     } else {
       /** Grace has no document, so she writes the way a restore would. */
       const original = await awaiting(step(id, "rolledback", "open"));
-      await client.workspace.write("rolledback.py", "first\nsecond\n").settled;
+      await client.workspace.write("rolledback.py", "first\nsecond\n").response;
       await awaiting(step(id, "rolledback", "moved on"));
 
       const older = await client.reads(entry, original);
       harness.expect(older).toBe("first\n");
-      await client.workspace.write("rolledback.py", older).settled;
+      await client.workspace.write("rolledback.py", older).response;
       await announce(step(id, "rolledback", "rolled back"));
       pocket.note = "restored what it said before";
     }
@@ -1642,7 +1642,7 @@
     harness.onAbort(() => one.dispose());
     const mine = one.workspace.create("mine.py", "start\n");
     const theirs = one.workspace.create("theirs.py", "start\n");
-    await Promise.all([mine.settled, theirs.settled]);
+    await Promise.all([mine.response, theirs.response]);
 
     /** The first tab loses the server and types a chain nobody has answered. */
     one.reachable(false);
@@ -1651,7 +1651,7 @@
       one.workspace.write("mine.py", "start\none\ntwo\n"),
       one.workspace.write("mine.py", "start\none\ntwo\nthree\n"),
     ];
-    queued.forEach((sent) => void sent.settled.catch(() => undefined));
+    queued.forEach((sent) => void sent.response.catch(() => undefined));
     await new Promise((carry) => setTimeout(carry, 500));
 
     /**
@@ -1662,7 +1662,7 @@
     const two = await Collaborator.opened(me(), id);
     harness.onAbort(() => two.dispose());
     for (const said of ["one", "two", "three", "four"])
-      await two.workspace.write("theirs.py", `start\n${said}\n`).settled;
+      await two.workspace.write("theirs.py", `start\n${said}\n`).response;
 
     /** And the first tab comes back. Its chain has to be intact. */
     one.reachable(true);
@@ -1677,12 +1677,12 @@
      * The last of the chain is the file's current version, so this tab can
      * see for itself that it landed. The two behind it were answered while
      * the OTHER tab was the one talking, and an answer is remembered by the
-     * tab that received it -- so this one still calls them unsettled. That is
+     * tab that received it -- so this one still calls them unanswered. That is
      * the conservative direction, and the honest test of whether the work is
      * really somewhere else is the rebuild below.
      */
     harness
-      .expect(one.workspace.unsettled([queued[queued.length - 1]!.transaction]))
+      .expect(one.workspace.unanswered([queued[queued.length - 1]!.transaction]))
       .toEqual([]);
 
     pocket.text = said;

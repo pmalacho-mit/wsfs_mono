@@ -58,14 +58,21 @@ async def test_a_room_nobody_has_written_to_reads_as_nothing(collaboration, room
     seeding: the keeper's whole job is telling "no such room" from "a room
     holding nothing" with a lock, and it cannot do that if the service will
     not answer the second.
+
+    NOTHING IS ABOUT THE TEXT, NOT ABOUT THE BYTES. This asked for `b""` until
+    a real sync engine was put behind it, which answers a created-but-empty
+    room with the two-byte encoding of a document nobody has contributed to.
+    Both decode to the same empty document -- `standing_of` and `carried` open
+    the update either way -- so an assertion on the encoding failed a service
+    that conforms. The suite exists to say what an implementation must MEAN.
     """
     await collaboration.create(room)
-    assert await collaboration.document(room) == b""
+    assert text_of(await collaboration.document(room)) == ""
 
 
 async def test_a_room_that_was_never_created_also_reads_as_nothing(collaboration, room):
     """The same ambiguity from the other side, and deliberately the same answer."""
-    assert await collaboration.document(room) == b""
+    assert text_of(await collaboration.document(room)) == ""
 
 
 async def test_creating_a_room_twice_is_creating_it_once(collaboration, room):
@@ -100,7 +107,7 @@ async def test_rooms_do_not_leak_into_each_other(collaboration, room, another_ro
     await collaboration.create(room)
     await collaboration.create(another_room)
     await collaboration.send(room, seeded("mine"))
-    assert await collaboration.document(another_room) == b""
+    assert text_of(await collaboration.document(another_room)) == ""
 
 
 @pytest.fixture

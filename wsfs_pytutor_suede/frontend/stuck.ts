@@ -138,9 +138,9 @@ export const settingsWith = (
   configured: Configured | undefined,
   base: Settings = DEFAULTS,
 ): Settings => {
-  const seconds = (value: number | null | undefined, held: number) => {
+  const seconds = (value: number | null | undefined, fallback: number) => {
     const asked = given(value);
-    return asked !== undefined && asked >= 0 ? asked * SECOND : held;
+    return asked !== undefined && asked >= 0 ? asked * SECOND : fallback;
   };
   const percentage = given(configured?.offerRate);
   return {
@@ -180,9 +180,9 @@ export const settingsFrom = (
     const value = Number(raw);
     return Number.isFinite(value) ? value : undefined;
   };
-  const seconds = (name: keyof Settings, held: number) => {
+  const seconds = (name: keyof Settings, fallback: number) => {
     const value = said(`nudge.${name}`);
-    return value !== undefined && value >= 0 ? value * SECOND : held;
+    return value !== undefined && value >= 0 ? value * SECOND : fallback;
   };
   const rate = said("nudge.offer");
   return {
@@ -225,8 +225,10 @@ const stillHolding = (
   at: number,
   longest: number,
 ): number => {
-  const held = given(until);
-  return held !== undefined && held > at && held <= at + longest ? held : 0;
+  const deadline = given(until);
+  return deadline !== undefined && deadline > at && deadline <= at + longest
+    ? deadline
+    : 0;
 };
 
 const DEADLINES = "wsfs:stuck:deadlines:";
@@ -249,9 +251,9 @@ export const deadlinesIn = (workspace: string) => {
   return {
     read: (): Deadlines | undefined => {
       try {
-        const held = globalThis.localStorage?.getItem(key);
-        if (held === null || held === undefined) return undefined;
-        const read = JSON.parse(held) as Partial<Deadlines>;
+        const stored = globalThis.localStorage?.getItem(key);
+        if (stored === null || stored === undefined) return undefined;
+        const read = JSON.parse(stored) as Partial<Deadlines>;
         return {
           cooldownUntil: given(read.cooldownUntil) ?? 0,
           windowUntil: given(read.windowUntil) ?? 0,
@@ -485,10 +487,10 @@ export class Stuck {
   }
 
   #current() {
-    const held = this.#wiring.looking?.();
-    return held === undefined
+    const open = this.#wiring.looking?.();
+    return open === undefined
       ? undefined
-      : { at: this.#now(), path: held.path, text: held.text };
+      : { at: this.#now(), path: open.path, text: open.text };
   }
 
   async #askWhetherItMoved(at: number): Promise<void> {
@@ -496,20 +498,20 @@ export class Stuck {
     if (judging === undefined || looking === undefined) return;
     if (this.#judging) return;
 
-    const held = looking();
-    if (held === undefined) return;
+    const onScreen = looking();
+    if (onScreen === undefined) return;
 
     const since = this.#since;
     /** A file the person only just opened has no "before" to compare with. */
-    if (since === undefined || since.path !== held.path) {
-      this.#since = { at, path: held.path, text: held.text };
+    if (since === undefined || since.path !== onScreen.path) {
+      this.#since = { at, path: onScreen.path, text: onScreen.text };
       return;
     }
     if (at - since.at < this.settings.progress) return;
 
-    const goal = goalFor?.(held.path);
+    const goal = goalFor?.(onScreen.path);
     /** Re-armed whatever the answer is, so the next window starts here. */
-    this.#since = { at, path: held.path, text: held.text };
+    this.#since = { at, path: onScreen.path, text: onScreen.text };
     if (goal === undefined) return;
 
     this.#judging = true;
@@ -517,10 +519,10 @@ export class Stuck {
       const said = await judging({
         goal,
         before: since.text,
-        after: held.text,
+        after: onScreen.text,
       });
       if (this.#stopped || said.progressing) return;
-      this.#consider("no progress", said.why || `no progress on ${held.path}`);
+      this.#consider("no progress", said.why || `no progress on ${onScreen.path}`);
     } catch {
       /** A judgement nobody could make is not evidence that anybody is
        *  stuck. The next window asks again. */

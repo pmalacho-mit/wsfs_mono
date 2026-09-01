@@ -65,7 +65,15 @@ intended end state is a generic pane in `wsfs_svelte_suede` with those arriving
 through extension points, and this shell becoming the thing that fills them.
 `FileView` has already been taken apart that way and is the shape to copy.
 
+## Reading it
+
+[GUIDE.md](./GUIDE.md) walks the files in the order they make sense in.
+
 ## Testing
 
 See [TESTING.md](./TESTING.md), including §6 on the one failure in this system
 that has no symptom.
+
+**Setting the suite up in this repo's own `main` branch?**
+[HANDOFF.md](./HANDOFF.md) is written for that: what to port, what needs a
+consumer app, and the traps that cost time the first time round.

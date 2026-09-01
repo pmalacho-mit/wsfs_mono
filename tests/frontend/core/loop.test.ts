@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { run } from "../../../wsfs_core_suede/frontend/loop";
 
-const settled = () => new Promise<void>((done) => setTimeout(done, 0));
+const flushTimers = () => new Promise<void>((done) => setTimeout(done, 0));
 
 describe("the sync loop", () => {
   it("re-enters at Initialize whenever a stream ends", async () => {
@@ -16,12 +16,12 @@ describe("the sync loop", () => {
       { watchdogMs: 10_000, minBackoffMs: 0, maxBackoffMs: 0 },
     );
 
-    await settled();
+    await flushTimers();
     expect(reconcile).toHaveBeenCalledTimes(1);
 
     endStream();
-    await settled();
-    await settled();
+    await flushTimers();
+    await flushTimers();
     expect(reconcile.mock.calls.length).toBeGreaterThan(1);
 
     loop.stop();
@@ -45,12 +45,12 @@ describe("the sync loop", () => {
       { watchdogMs: 10_000, minBackoffMs: 0, maxBackoffMs: 0 },
     );
 
-    await settled();
+    await flushTimers();
     expect(reconcile).toHaveBeenCalledTimes(1);
 
     loop.nudge();
-    await settled();
-    await settled();
+    await flushTimers();
+    await flushTimers();
     expect(reconcile.mock.calls.length).toBeGreaterThan(1);
 
     loop.stop();
@@ -107,9 +107,9 @@ describe("the sync loop", () => {
       { watchdogMs: 10_000, minBackoffMs: 0, maxBackoffMs: 0 },
     );
 
-    await settled();
+    await flushTimers();
     loop.stop();
-    await settled();
+    await flushTimers();
 
     expect(aborted).toBe(true);
   });

@@ -45,14 +45,14 @@ def place(app: FastAPI):
 @pytest.fixture(autouse=True)
 def unwarmed(app: FastAPI):
     """No collaboration server in this suite -- see `tests/clone.py`."""
-    settled: list[str] = []
+    ensured: list[str] = []
 
     async def ensure(entry: str) -> str | None:
-        settled.append(entry)
+        ensured.append(entry)
         return None
 
     app.state.wsfs.keeper.ensure = ensure
-    return settled
+    return ensured
 
 
 @pytest.fixture

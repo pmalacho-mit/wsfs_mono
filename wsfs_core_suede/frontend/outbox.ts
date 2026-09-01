@@ -23,7 +23,7 @@
  * business", and `writes.ts` puts them back on the way out.
  */
 import type { Digest, Store } from "./bytes";
-import { nowhere, type Kept } from "./kept";
+import { nowhere, type OutboxStore } from "./outbox-store";
 import { applyDelta, deltaBetween, type Delta } from "./delta";
 import {
   isWrite,
@@ -126,8 +126,8 @@ export const isElided = (request: Held): request is Elided =>
  * was holding to the chained write behind it. A rule spread over six call
  * sites is one that gets five of them.
  */
-export const queue = (held: Entry[] = [], kept: Kept = nowhere): Queue => {
-  const items = [...held];
+export const queue = (queued: Entry[] = [], outboxStore: OutboxStore = nowhere): Queue => {
+  const items = [...queued];
 
   /**
    * Two items can name one digest -- the store is content-addressed, so
@@ -160,7 +160,7 @@ export const queue = (held: Entry[] = [], kept: Kept = nowhere): Queue => {
     capture: (request, content, basis) => {
       const captured = stamped(elided(request), content, basis);
       items.push(captured);
-      kept.moved({ written: [captured] });
+      outboxStore.moved({ written: [captured] });
       return captured;
     },
 
@@ -172,7 +172,7 @@ export const queue = (held: Entry[] = [], kept: Kept = nowhere): Queue => {
       const stale = [item.content, item.basis?.content];
       item.content = content;
       delete item.basis;
-      kept.moved({ written: [item] });
+      outboxStore.moved({ written: [item] });
       return freeing(stale);
     },
 
@@ -205,7 +205,7 @@ export const queue = (held: Entry[] = [], kept: Kept = nowhere): Queue => {
        * amend those could be killed between the two, and what came back would
        * be a delta against a predecessor that is gone.
        */
-      if (gone.length > 0) kept.moved({ written: amended, gone });
+      if (gone.length > 0) outboxStore.moved({ written: amended, gone });
       return freeing(stale);
     },
   };
@@ -307,7 +307,7 @@ export type Presented = { presented: Submitted[]; unreadable: Unreadable[] };
  * being sent -- turning a single lost write into a queue that never drains
  * again. What cannot be read is named and left for the caller to evict.
  */
-export const presenting = async (
+export const prepareSubmissions = async (
   items: Entry[],
   queue: Queue,
   bytes: Store,

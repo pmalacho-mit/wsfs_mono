@@ -7,7 +7,7 @@
   import { Kernel } from "python-web-kernel-suede";
   import fs from "python-web-kernel-suede/fs";
   import { nameOf } from "$svelte/paths";
-  import type { Execution } from "$pytutor/Workspace.svelte";
+  import type { Run } from "$svelte";
 
   /** Unclosed on purpose: the point is a run that ends badly. */
   const BROKEN = `print("hello world"`;
@@ -15,9 +15,9 @@
   const ROOT = "/home/pyodide";
 
   class Pocket {
-    source = $state(BROKEN);
+    showing = $state(BROKEN);
     /** Where runs accumulate: on the file, not in the panel showing them. */
-    executions = $state<Execution[]>([]);
+    runs = $state<Run[]>([]);
     id = "example";
     path = "example.py";
     started = $state<{
@@ -28,20 +28,20 @@
     outcome = $state<Outcome>();
 
     /** One file, so the run fails on the code rather than on an empty disk. */
-    readonly held = new Map([[`${ROOT}/example.py`, BROKEN]]);
+    readonly onDisk = new Map([[`${ROOT}/example.py`, BROKEN]]);
 
     readonly pool = new WarmPool<Kernel>({
       create: () =>
         new Kernel({
           fs: fs.readWrite({
             root: ROOT,
-            get: (path) => this.held.get(path),
+            get: (path) => this.onDisk.get(path),
             listDirectory: (path) =>
-              path === ROOT ? [...this.held.keys()].map(nameOf) : [],
+              path === ROOT ? [...this.onDisk.keys()].map(nameOf) : [],
             put: (path, value) =>
               typeof value === "string"
-                ? void this.held.set(path, value)
-                : void this.held.delete(path),
+                ? void this.onDisk.set(path, value)
+                : void this.onDisk.delete(path),
           }),
           input: async (prompt) => window.prompt(prompt) ?? "",
         }),
@@ -80,7 +80,7 @@
   {#snippet vest(pocket: Pocket)}
     <div class="bg-background h-full w-full">
       <Runner
-        shared={pocket}
+        file={pocket}
         kernelPool={pocket.pool}
         onFinished={(outcome) => (pocket.outcome = outcome)}
       />
@@ -97,18 +97,18 @@
      * for at the end -- which is where their eye already is.
      */
     const pocket: Pocket = set(new Pocket());
-    pocket.source = 'print("first")\n';
+    pocket.showing = 'print("first")\n';
     await delay({ frames: 2 });
 
     const runs = async (times: number) => {
       for (let at = 0; at < times; at += 1) {
-        const before = pocket.executions.length;
+        const before = pocket.runs.length;
         const button = container.querySelector(
           "[data-region='run']",
         ) as HTMLElement;
         await withUserFocus(async (user: any) => user.click(button));
         const deadline = Date.now() + 120_000;
-        while (pocket.executions.length === before) {
+        while (pocket.runs.length === before) {
           if (Date.now() > deadline) throw new Error("a run never finished");
           await delay({ milliseconds: 100 });
         }
@@ -116,7 +116,7 @@
     };
 
     await runs(1);
-    pocket.source = 'print("second")\n';
+    pocket.showing = 'print("second")\n';
     await runs(1);
     await delay({ frames: 2 });
 
@@ -135,7 +135,7 @@
     expect(shown.textContent!.indexOf("first")).toBeLessThan(
       shown.textContent!.indexOf("second"),
     );
-    expect(pocket.executions).toHaveLength(2);
+    expect(pocket.runs).toHaveLength(2);
     await capture("png").uri;
 
     /** And Clear empties what the FILE holds, which is what anything else
@@ -145,7 +145,7 @@
     ) as HTMLElement;
     await withUserFocus(async (user: any) => user.click(clear));
     await delay({ frames: 2 });
-    expect(pocket.executions).toHaveLength(0);
+    expect(pocket.runs).toHaveLength(0);
     expect(
       container.querySelectorAll("[data-region='execution']"),
     ).toHaveLength(0);
@@ -154,7 +154,7 @@
 >
   {#snippet vest(pocket: Pocket)}
     <div class="bg-background h-[24rem] w-full">
-      <Runner shared={pocket} kernelPool={pocket.pool} />
+      <Runner file={pocket} kernelPool={pocket.pool} />
     </div>
   {/snippet}
 </Sweater>
@@ -168,7 +168,7 @@
      * needs, while the panel goes on drawing output as it arrives.
      */
     const pocket: Pocket = set(new Pocket());
-    pocket.source = 'print("hello")\n';
+    pocket.showing = 'print("hello")\n';
     await delay({ frames: 2 });
 
     const button = container.querySelector("[data-region='run']") as HTMLElement;
@@ -183,13 +183,13 @@
     const outcome = await pocket.started!.result;
     expect(outcome.ok).toBe(true);
     /** Told as it STARTED: the file already holds it by the time it resolves. */
-    expect(pocket.executions).toHaveLength(1);
+    expect(pocket.runs).toHaveLength(1);
   }}
 >
   {#snippet vest(pocket: Pocket)}
     <div class="bg-background h-[24rem] w-full">
       <Runner
-        shared={pocket}
+        file={pocket}
         kernelPool={pocket.pool}
         onRun={(started) => (pocket.started = started)}
       />

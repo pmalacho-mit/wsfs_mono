@@ -91,15 +91,15 @@ async def test_an_episode_records_itself_its_cooldown_and_its_window(
     episode, response = await detected(api)
     assert response.status_code == 204, response.text
 
-    (kept,) = rows(session, models.episode)
-    assert str(kept.id) == episode
-    assert kept.rule.value == "idle"
-    assert kept.outcome.value == "offered"
-    assert kept.course_event == "6.100L Lecture 3"
-    assert kept.path == "/demo.py"
-    assert kept.code == "print('hello'"
-    assert kept.at == ONSET
-    assert str(kept.user_id) != ""
+    (row,) = rows(session, models.episode)
+    assert str(row.id) == episode
+    assert row.rule.value == "idle"
+    assert row.outcome.value == "offered"
+    assert row.course_event == "6.100L Lecture 3"
+    assert row.path == "/demo.py"
+    assert row.code == "print('hello'"
+    assert row.at == ONSET
+    assert str(row.user_id) != ""
 
     (cooldown,) = rows(session, models.cooldown)
     (window,) = rows(session, models.window)
@@ -117,8 +117,8 @@ async def test_a_silent_episode_records_a_window_and_no_cooldown(
     _, response = await detected(api, became="silent", cooldown=None)
     assert response.status_code == 204
 
-    (kept,) = rows(session, models.episode)
-    assert kept.outcome.value == "silent"
+    (row,) = rows(session, models.episode)
+    assert row.outcome.value == "silent"
     assert rows(session, models.cooldown) == []
     assert len(rows(session, models.window)) == 1
 
@@ -137,8 +137,8 @@ async def test_an_episode_the_protocol_held_back_is_still_recorded(
     )
     assert response.status_code == 204
 
-    (kept,) = rows(session, models.episode)
-    assert kept.outcome.value == "held back by the cooldown"
+    (row,) = rows(session, models.episode)
+    assert row.outcome.value == "held back by the cooldown"
     assert rows(session, models.cooldown) == []
     assert rows(session, models.window) == []
 
@@ -220,9 +220,9 @@ async def test_two_flushes_of_one_window_are_two_rows(api: Api, session: Session
     await recorded(api, episode, [{"at": ONSET.isoformat(), "kind": "interaction"}])
     await recorded(api, episode, [{"at": ONSET.isoformat(), "kind": "ran"}])
 
-    kept = rows(session, models.activity)
-    assert len(kept) == 2
-    assert sorted(one.moments[0]["kind"] for one in kept) == ["interaction", "ran"]
+    activity = rows(session, models.activity)
+    assert len(activity) == 2
+    assert sorted(one.moments[0]["kind"] for one in activity) == ["interaction", "ran"]
 
 
 async def test_an_empty_flush_writes_nothing(api: Api, session: Session):

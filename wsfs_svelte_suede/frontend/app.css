@@ -4,14 +4,24 @@
 @import "@fontsource-variable/inter";
 
 /**
- * The components live in the published package, which is outside this app's
- * root -- so Tailwind's automatic detection never reaches them and every
- * utility they use is silently dropped. Explicit, and it has to be.
+ * The components live in published packages, outside this app's root -- so
+ * Tailwind's automatic detection never reaches them and every utility they use
+ * is silently dropped. Explicit, and it has to be.
+ *
+ * A GLOB RATHER THAN A LIST, so that this file names no package in particular.
+ * Four of them draw things and this is one of the four; naming the other three
+ * here would be a stylesheet reaching upwards at the one boundary the import
+ * audit cannot see.
  */
 @source "../";
+@source "../../wsfs_*_suede/frontend";
 
 /**
  * AND THE MARKDOWN RENDERER'S OWN CLASSES.
+ *
+ * Relative to THIS file, which moved up one directory in the split -- so if
+ * the copy and download buttons on a code block ever stop taking clicks
+ * again, check this path first.
  *
  * `streamdown-svelte` draws the code blocks in an assistant's answer, and it
  * names its utilities in its own `theme.js` rather than in any markup this
@@ -30,7 +40,7 @@
  * A consumer who installs this package resolves its dependencies at their own
  * path and will need the equivalent line for it.
  */
-@source "../../../node_modules/streamdown-svelte/dist";
+@source "../../node_modules/streamdown-svelte/dist";
 
 /**
  * A code block's controls belong to that code block.

@@ -130,6 +130,8 @@ export const awaiting = async (
 export const step = (workspace: string, scenario: string, name: string) =>
   `${workspace}:${scenario}:${name}`;
 
+import { baseUrl } from "./liveblocks";
+
 type LiveblocksClient = ReturnType<typeof createClient>;
 
 const BACKEND = "/wsfs";
@@ -138,6 +140,7 @@ const asUser = (email: string) => async () => ({ "X-User-Email": email });
 
 export const liveblocksClientAs = (email: string): LiveblocksClient =>
   createClient({
+    baseUrl: baseUrl(),
     authEndpoint: async (room) => {
       const answer = await fetch(
         `/liveblocks/token?rooms=${encodeURIComponent(room ?? "")}`,
@@ -193,11 +196,11 @@ export const switchable = (
       reach(),
       wire.content(workspace, entry, version)
     ),
-    store: (workspace, digest, bytes, mime) => (
+    uploadBytes: (workspace, digest, bytes, mime) => (
       reach(),
-      wire.store(workspace, digest, bytes, mime)
+      wire.uploadBytes(workspace, digest, bytes, mime)
     ),
-    settleRoom: (workspace, entry) => (reach(), wire.settleRoom(workspace, entry)),
+    bringRoomUpToFile: (workspace, entry) => (reach(), wire.bringRoomUpToFile(workspace, entry)),
     warmRoom: (workspace, entry) => (reach(), wire.warmRoom(workspace, entry)),
     roomStored: (workspace, entry, version) => (
       reach(),
@@ -264,10 +267,10 @@ export class Collaborator {
     );
   }
 
-  readonly held: Keeping;
+  readonly keeping: Keeping;
 
-  constructor(part: Part, workspaceId: string, held: Keeping) {
-    this.held = held;
+  constructor(part: Part, workspaceId: string, keeping: Keeping) {
+    this.keeping = keeping;
     this.part = part;
     this.workspaceId = workspaceId;
     this.email = emailOf(part);
@@ -287,9 +290,9 @@ export class Collaborator {
     this.workspace = connect({
       workspace: workspaceId,
       transport: this.transport,
-      bytes: held.bytes,
-      kept: held.kept,
-      restored: held.restored,
+      bytes: keeping.bytes,
+      outboxStore: keeping.outboxStore,
+      restored: keeping.restored,
       shared: (entry) => this.rooms.speaksFor(entry),
     });
     this.liveblocks = liveblocksClientAs(this.email);
@@ -340,11 +343,11 @@ export class Collaborator {
 
   /** What the server says this entry holds, now or at one version. */
   async reads(entry: string, version?: string): Promise<string> {
-    const held =
+    const content =
       version === undefined
         ? await this.workspace.read(this.#path(entry))
         : await this.workspace.at(entry, version);
-    return held !== undefined && held.kind === "text" ? held.text : "";
+    return content !== undefined && content.kind === "text" ? content.text : "";
   }
 
   token(entry: string): string | null {
@@ -405,17 +408,17 @@ export class Collaborator {
   }
 
   store(entry: string): Promise<Written> {
-    return this.#room(entry).store();
+    return this.#room(entry).saveVersion();
   }
 
   /** A write that does NOT go through the room -- a script, another tool. */
   writeAround(entry: string, text: string) {
-    return this.workspace.write(this.#path(entry), text).settled;
+    return this.workspace.write(this.#path(entry), text).response;
   }
 
   /** Bytes over a file somebody may have open as text. */
   replace(entry: string, bytes: Uint8Array, mime: string) {
-    return this.workspace.write(this.#path(entry), bytes, mime).settled;
+    return this.workspace.write(this.#path(entry), bytes, mime).response;
   }
 
   goOffline(entry: string) {
@@ -471,7 +474,7 @@ export class Collaborator {
   async #putSomewhere(entry: string): Promise<{ content_version?: string }> {
     if (this.rooms.get(entry) === undefined) return {};
     const answer = await this.store(entry);
-    if (!answer.held) return { content_version: answer.transaction };
+    if (!answer.withheld) return { content_version: answer.transaction };
     return answer.draft === null ? {} : { content_version: answer.draft };
   }
 
@@ -521,7 +524,7 @@ export class Collaborator {
   async #reachable(taken: readonly contract.Versions[]): Promise<void> {
     const deadline = Date.now() + 20_000;
     for (;;) {
-      const waiting = this.unsettled(taken);
+      const waiting = this.unanswered(taken);
       if (waiting.length === 0) return;
       if (Date.now() > deadline)
         throw new Error(`never reached the server: ${JSON.stringify(waiting)}`);
@@ -530,15 +533,15 @@ export class Collaborator {
   }
 
   snapshot(entry: string): contract.Versions {
-    const held = this.workspace.entries().get(entry);
-    if (held === undefined)
+    const metadata = this.workspace.entries().get(entry);
+    if (metadata === undefined)
       throw new Error(`${entry} is not in this workspace`);
     return {
-      id: held.id,
-      name_version: held.name_version,
-      parent_version: held.parent_version,
-      deleted_version: held.deleted_version,
-      content_version: held.content_version ?? null,
+      id: metadata.id,
+      name_version: metadata.name_version,
+      parent_version: metadata.parent_version,
+      deleted_version: metadata.deleted_version,
+      content_version: metadata.content_version ?? null,
     };
   }
 
@@ -548,7 +551,7 @@ export class Collaborator {
    * Empty is what makes a snapshot portable: anything else names work sitting
    * in this client's outbox, which nothing on the server can rebuild.
    */
-  unsettled(taken: readonly contract.Versions[]): string[] {
+  unanswered(taken: readonly contract.Versions[]): string[] {
     const tokens = taken.flatMap((entry) =>
       [
         entry.name_version,
@@ -557,7 +560,7 @@ export class Collaborator {
         entry.content_version,
       ].filter((token): token is string => typeof token === "string"),
     );
-    return this.workspace.unsettled(tokens);
+    return this.workspace.unanswered(tokens);
   }
 
   /** What the server says those transactions said. */
@@ -590,8 +593,8 @@ export class Collaborator {
      *
      * This teardown CAN wait, so not waiting would throw away answers that
      * were on their way -- and the next client to open would call work that
-     * is safely on the server unsettled.
+     * is safely on the server unanswered.
      */
-    await this.held.flushed();
+    await this.keeping.flushed();
   }
 }

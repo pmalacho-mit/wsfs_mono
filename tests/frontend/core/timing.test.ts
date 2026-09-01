@@ -42,7 +42,7 @@ const recording = () => {
     initialize: async () => ({ token: "t", entries: [], applied: [], rejected: [] }),
     submit: async (_workspace, request) => (sent.push(request), { rejected: false }),
     content: async () => ({ kind: "text", text: "" }),
-    store: async () => {},
+    uploadBytes: async () => {},
     follow: () => ({ close: () => {} }),
   };
   return { sent, transport };
@@ -57,11 +57,11 @@ describe("what a transaction carries about when it happened", () => {
   it("stamps the client's zone on every kind of request", async () => {
     const { sent, workspace } = opened();
 
-    await workspace.create("a.py", "print()").settled;
-    await workspace.folder("src").settled;
-    await workspace.write("a.py", "print(1)").settled;
-    await workspace.move("a.py", "b.py").settled;
-    await workspace.remove("b.py").settled;
+    await workspace.create("a.py", "print()").response;
+    await workspace.folder("src").response;
+    await workspace.write("a.py", "print(1)").response;
+    await workspace.move("a.py", "b.py").response;
+    await workspace.remove("b.py").response;
     workspace.stop();
 
     expect(sent.map((request) => request.op)).toEqual([
@@ -78,7 +78,7 @@ describe("what a transaction carries about when it happened", () => {
 
   it("sends no second clock reading -- the id already holds one", async () => {
     const { sent, workspace } = opened();
-    await workspace.create("a.py", "x").settled;
+    await workspace.create("a.py", "x").response;
     workspace.stop();
 
     const request = sent[0]!;

@@ -28,10 +28,10 @@
    * a different test and every failure unrepeatable.
    */
   const rolling = (seed: number) => {
-    let held = seed >>> 0;
+    let state = seed >>> 0;
     return () => {
-      held = (held * 1664525 + 1013904223) >>> 0;
-      return held / 0x100000000;
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0x100000000;
     };
   };
 
@@ -91,7 +91,7 @@
     const path = "soak.py";
     const made = client.workspace.create(path, "line 0\n");
     const entry = made.entry;
-    await made.settled;
+    await made.response;
 
     /**
      * What this client believes the file says, and every transaction it was
@@ -103,7 +103,7 @@
     const accepted: string[] = [made.transaction];
     const acted: Act[] = [];
     /** Work that reached nobody, and must still be recoverable. */
-    const drafted: { transaction: string; says: string }[] = [];
+    const drafted: { transaction: string; message: string }[] = [];
 
     /**
      * Whether a document speaks for this file right now.
@@ -121,7 +121,7 @@
         client.type(entry, next);
         await until("the room to speak", () => client.speaks(entry), 30_000);
         const stored = await client.store(entry);
-        if (stored.held)
+        if (stored.withheld)
           return { what: `typed line ${at}, kept: ${stored.why}` };
         believed = next;
         accepted.push(stored.transaction);
@@ -129,7 +129,7 @@
       }
       const written = client.workspace.write(path, next);
       try {
-        const answer = await written.settled;
+        const answer = await written.response;
         if (!answer.rejected) {
           believed = next;
           accepted.push(written.transaction);
@@ -155,7 +155,7 @@
       client.reachable(false);
       const next = `${believed}offline ${at}\n`;
       const written = client.workspace.write(path, next);
-      void written.settled.catch(() => undefined);
+      void written.response.catch(() => undefined);
       await wait(150);
       client.reachable(true);
       client.workspace.nudge();
@@ -195,9 +195,9 @@
       const second = `${first}race ${at}b\n`;
       const one = client.workspace.write(path, first);
       const two = client.workspace.write(path, second);
-      const answers = await Promise.allSettled([one.settled, two.settled]);
+      const answers = await Promise.allSettled([one.response, two.response]);
       const landed = answers.every(
-        (held) => held.status === "fulfilled" && !held.value.rejected,
+        (response) => response.status === "fulfilled" && !response.value.rejected,
       );
       if (!landed) return { what: `raced ${at}, one did not land` };
       believed = second;
@@ -218,9 +218,9 @@
       );
       client.goOffline(entry);
       client.type(entry, `${client.text(entry)}draft ${at}\n`);
-      const kept = await client.store(entry);
-      if (!kept.held) return { what: `draft ${at} was not held` };
-      drafted.push({ transaction: kept.draft!, says: `draft ${at}` });
+      const withheldDraft = await client.store(entry);
+      if (!withheldDraft.withheld) return { what: `draft ${at} was not held` };
+      drafted.push({ transaction: withheldDraft.draft!, message: `draft ${at}` });
 
       /**
        * And then it stops being a draft, which is the design rather than a
@@ -237,7 +237,7 @@
       await client.comeBack(entry);
       await until("the room to speak again", () => client.speaks(entry), 30_000);
       const stored = await client.store(entry);
-      if (!stored.held) accepted.push(stored.transaction);
+      if (!stored.withheld) accepted.push(stored.transaction);
       believed = client.text(entry);
       return { what: `kept draft ${at}, then shared it`, said: believed };
     };
@@ -246,20 +246,20 @@
     const restore = async (): Promise<Act> => {
       const { versions } = await client.workspace.history(entry, { limit: 10 });
       const older = versions.filter(
-        (one) => one.standing === "applied" && one.kind === "text",
+        (draft) => draft.standing === "applied" && draft.kind === "text",
       );
       if (older.length < 2) return { what: "nothing old enough to restore" };
       const wanted = older[older.length - 1]!;
-      const held = await client.workspace.at(entry, wanted.transaction);
-      if (held.kind !== "text") return { what: "that version was not text" };
-      const { settled } = await client.workspace.restore(
+      const version = await client.workspace.at(entry, wanted.transaction);
+      if (version.kind !== "text") return { what: "that version was not text" };
+      const { response } = await client.workspace.restore(
         entry,
         wanted.transaction,
       );
-      const answer = await settled;
+      const answer = await response;
       if (answer.rejected) return { what: `restore refused: ${answer.reason}` };
-      believed = held.text;
-      return { what: "restored an older version", said: held.text };
+      believed = version.text;
+      return { what: "restored an older version", said: version.text };
     };
 
     for (let round = 0; round < ROUNDS; round += 1) {
@@ -290,7 +290,7 @@
                     : await restore();
       acted.push(done);
       pocket.rounds = round + 1;
-      pocket.log = [...acted.slice(-6).map((one) => one.what)];
+      pocket.log = [...acted.slice(-6).map((action) => action.what)];
 
       /**
        * Checked EVERY round rather than once at the end. A soak test that
@@ -314,10 +314,10 @@
      */
     const finally_ = await client.reads(entry);
     if (finally_ !== believed) {
-      const held = new Set(finally_.split("\n").filter(Boolean));
+      const lines = new Set(finally_.split("\n").filter(Boolean));
       const wanted_ = new Set(believed.split("\n").filter(Boolean));
-      const missing = [...wanted_].filter((line) => !held.has(line));
-      const extra = [...held].filter((line) => !wanted_.has(line));
+      const missing = [...wanted_].filter((line) => !lines.has(line));
+      const extra = [...lines].filter((line) => !wanted_.has(line));
       throw new Error(
         `the file and this client disagree -- missing from the file: ` +
           `${missing.join(" | ") || "(none)"}; in the file and not expected: ` +
@@ -326,22 +326,22 @@
     }
 
     /**
-     * 2. Everything answered is still accounted for. `unsettled` is the
+     * 2. Everything answered is still accounted for. `unanswered` is the
      * client's own question -- of these transactions, which has the server
      * not written down -- and an empty answer is what makes a snapshot of
      * this session portable to anybody else.
      */
     await until(
       "every accepted transaction to be settled",
-      () => client.workspace.unsettled(accepted).length === 0,
+      () => client.workspace.unanswered(accepted).length === 0,
       60_000,
       () => {
-        const loose = client.workspace.unsettled(accepted);
-        const when = loose.map((one) => {
-          const at = accepted.indexOf(one);
-          return `${one.slice(-6)} (accepted ${at} of ${accepted.length})`;
+        const loose = client.workspace.unanswered(accepted);
+        const when = loose.map((transaction) => {
+          const at = accepted.indexOf(transaction);
+          return `${transaction.slice(-6)} (accepted ${at} of ${accepted.length})`;
         });
-        return `${loose.length} still unsettled: ${when.join(", ")}`;
+        return `${loose.length} still unanswered: ${when.join(", ")}`;
       },
     );
 
@@ -353,11 +353,11 @@
      * the whole of what it promises.
      */
     for (const one of drafted) {
-      const held = await client.workspace.at(entry, one.transaction);
-      harness.expect(held.kind).toBe("text");
-      harness.expect(held.kind === "text" && held.text).toContain(one.says);
+      const version = await client.workspace.at(entry, one.transaction);
+      harness.expect(version.kind).toBe("text");
+      harness.expect(version.kind === "text" && version.text).toContain(one.message);
     }
-    harness.expect(client.workspace.unsettled(drafted.map((one) => one.transaction))).toEqual([]);
+    harness.expect(client.workspace.unanswered(drafted.map((draft) => draft.transaction))).toEqual([]);
 
     /**
      * 4. And the server can still hand back what this client was looking at,
@@ -430,7 +430,7 @@
     let entry: string;
     if (playing("ada")) {
       const made = client.workspace.create("pair.py", "start\n");
-      await made.settled;
+      await made.response;
       entry = made.entry;
       await announce(key, entry);
     } else {
@@ -499,7 +499,7 @@
         await until("the room to speak", () => client.speaks(entry), 30_000);
         try {
           const stored = await client.store(entry);
-          if (stored.held) pocket.note = `round ${round} kept: ${stored.why}`;
+          if (stored.withheld) pocket.note = `round ${round} kept: ${stored.why}`;
         } catch {
           /** The wire went while this was in flight. Queued, and sent later. */
           pocket.note = `round ${round} store is waiting`;
@@ -530,25 +530,25 @@
     /** And once it is stored, the FILE says all of it too. */
     await until("the room to speak", () => client.speaks(entry), 30_000);
     const stored = await client.store(entry);
-    if (stored.held) throw new Error(`would not store: ${stored.why}`);
+    if (stored.withheld) throw new Error(`would not store: ${stored.why}`);
     await announce(step(id, "pair", `stored-${mine}`));
     await awaiting(step(id, "pair", `stored-${playing("ada") ? "grace" : "ada"}`));
 
     await until(
       "the file to hold every line",
       async () => {
-        const held = await client.reads(entry);
-        return wanted.every((line) => held.includes(line));
+        const text = await client.reads(entry);
+        return wanted.every((line) => text.includes(line));
       },
       60_000,
     );
 
     /** Each line exactly once: merging twice is as bad as losing one. */
-    const held = await client.reads(entry);
+    const text = await client.reads(entry);
     for (const line of wanted)
-      harness.expect(held.split(line).length - 1).toBe(1);
+      harness.expect(text.split(line).length - 1).toBe(1);
 
-    pocket.text = held.split("\n").slice(0, 6).join("\n");
+    pocket.text = text.split("\n").slice(0, 6).join("\n");
     pocket.verdict = `${wanted.length} lines, all present, none doubled`;
     await client.take(entry);
     await client.rebuildable();

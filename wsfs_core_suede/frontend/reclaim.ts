@@ -21,7 +21,7 @@
  *
  *   - Rows in `answers`. They are three ids each and every reconcile prunes
  *     them to the few a snapshot cannot answer for. Dropping them would cost
- *     the accuracy of `unsettled` to save almost nothing.
+ *     the accuracy of `unanswered` to save almost nothing.
  *   - Yjs documents. Compacting one means enumerating databases this module
  *     did not create, which `indexedDB.databases()` does not offer in every
  *     browser this is tested in, and rewriting a store another tab may hold
@@ -34,7 +34,7 @@
  */
 import type { Digest } from "./bytes";
 import type { Id } from "./contract";
-import { referenced } from "./kept";
+import { referenced } from "./outbox-store";
 import type { Entry } from "./outbox";
 
 /** Where a pass got to, and what it found. */
@@ -106,7 +106,7 @@ export const headroom = async (): Promise<Headroom> => {
  *
  * The age is what makes this safe across tabs. A payload is written before
  * the row naming it, so one that has just arrived looks exactly like garbage
- * -- and the guard that knows better is held in the tab that wrote it. Only
+ * -- and the guard that knows better is wantedHere in the tab that wrote it. Only
  * bytes that predate this pass are considered, so a payload another tab is
  * mid-way through capturing is never in scope. A row with no timestamp
  * predates timestamps, and therefore predates this pass.
@@ -118,9 +118,9 @@ export const collectable = (
 ): Payload[] => {
   const wanted = new Map<Id, Set<Digest>>();
   for (const { workspace, entry } of rows) {
-    const held = wanted.get(workspace) ?? new Set<Digest>();
-    for (const digest of referenced([entry])) held.add(digest);
-    wanted.set(workspace, held);
+    const wantedHere = wanted.get(workspace) ?? new Set<Digest>();
+    for (const digest of referenced([entry])) wantedHere.add(digest);
+    wanted.set(workspace, wantedHere);
   }
   return payloads.filter(
     (payload) =>
@@ -134,10 +134,10 @@ const named = ({ workspace, digest }: { workspace: Id; digest: Digest }) =>
 
 /** What is left once the garbage is gone, and which workspaces are holding it. */
 const stillHeld = (payloads: Payload[], gone: Set<string>) => {
-  const kept = payloads.filter((payload) => !gone.has(named(payload)));
+  const surviving = payloads.filter((payload) => !gone.has(named(payload)));
   return {
-    holding: kept.reduce((total, one) => total + one.size, 0),
-    workspaces: [...new Set(kept.map(({ workspace }) => workspace))],
+    holding: surviving.reduce((total, payload) => total + payload.size, 0),
+    workspaces: [...new Set(surviving.map(({ workspace }) => workspace))],
   };
 };
 

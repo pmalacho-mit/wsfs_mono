@@ -128,7 +128,7 @@ export class Room {
 
   constructor(
     readonly entry: string,
-    readonly held: Rooms,
+    readonly registry: Rooms,
   ) {}
 
   get text(): Y.Text {
@@ -172,13 +172,13 @@ export class Room {
   get #withheld(): (Trouble & { sayable: boolean }) | undefined {
     if (this.replaced !== undefined)
       return {
-        says: "this file is not text any more",
+        message: "this file is not text any more",
         passing: false,
         sayable: true,
       };
     if (this.#ahead)
       return {
-        says: "still handing over what you typed",
+        message: "still handing over what you typed",
         passing: true,
         /**
          * NOT SAID. This is the healthy path: it is true for a fraction of a
@@ -192,7 +192,7 @@ export class Room {
     if (rooms.speaking({ attached: this.attached, behind: this.#missed }))
       return undefined;
     return {
-      says: this.attached ? "catching up" : "not reaching anybody",
+      message: this.attached ? "catching up" : "not reaching anybody",
       passing: true,
       sayable: true,
     };
@@ -200,9 +200,9 @@ export class Room {
 
   /** What is worth telling the person at the keyboard, if anything. */
   get trouble(): Trouble | undefined {
-    const held = this.#withheld;
-    if (held === undefined || !held.sayable) return undefined;
-    return { says: held.says, passing: held.passing };
+    const withheld = this.#withheld;
+    if (withheld === undefined || !withheld.sayable) return undefined;
+    return { message: withheld.message, passing: withheld.passing };
   }
 
   /**
@@ -237,9 +237,9 @@ export class Room {
    * version it did not ask for.
    */
   async #told(transaction: contract.Transaction) {
-    const held = await this.held.workspace.at(this.entry, transaction);
-    if (held.kind === "binary") {
-      await this.standDown(transaction, held.mime);
+    const stored = await this.registry.workspace.at(this.entry, transaction);
+    if (stored.kind === "binary") {
+      await this.standDown(transaction, stored.mime);
       return;
     }
     await this.catchUp();
@@ -276,7 +276,7 @@ export class Room {
    */
   async recall(): Promise<void> {
     if (this.#stopKeeping !== undefined) return;
-    const { loaded, stop } = this.held.persist(this.entry, this.doc);
+    const { loaded, stop } = this.registry.persist(this.entry, this.doc);
     this.#stopKeeping = stop;
     await loaded;
   }
@@ -294,12 +294,12 @@ export class Room {
    */
   async storeWhatNobodyStored(): Promise<void> {
     if (!this.speaks) return;
-    const path = this.held.path(this.entry);
+    const path = this.registry.path(this.entry);
     if (path === undefined) return;
-    const stored = await this.held.workspace.read(path);
+    const stored = await this.registry.workspace.read(path);
     if (stored?.kind !== "text") return;
     if (stored.text === this.text.toString()) return;
-    await this.store();
+    await this.saveVersion();
   }
 
   /** Resolves once everything typed here has reached the room. */
@@ -309,7 +309,7 @@ export class Room {
 
   /** Have the server bring this room up to whatever the file now says. */
   async catchUp(): Promise<void> {
-    this.base = await this.held.host.settle(this.entry);
+    this.base = await this.registry.host.bringRoomUpToFile(this.entry);
     this.#missed = false;
   }
 
@@ -320,11 +320,11 @@ export class Room {
    * -- and the server reads that claim to tell a write the room made from one
    * it did not, which is what stops its own text being carried back in.
    */
-  send(): Sending {
+  submitVersion(): Sending {
     const trouble = this.trouble;
-    if (trouble !== undefined) return this.#kept(trouble.says);
+    if (trouble !== undefined) return this.#recordDraft(trouble.message);
 
-    const { transaction, settled } = this.held.workspace.shares(
+    const { transaction, response } = this.registry.workspace.shares(
       this.entry,
       this.text.toString(),
     );
@@ -339,7 +339,7 @@ export class Room {
      * only has to be told where the file now stands -- and every other client
      * that hears about this write then costs nothing to answer.
      */
-    void settled.then((answer) => {
+    void response.then((answer) => {
       if (answer.rejected) return;
       this.base = transaction;
       /**
@@ -356,9 +356,9 @@ export class Room {
        * text with the file before carrying anything, so a room that already
        * says it is rebased rather than written to.
        */
-      void this.held.host.stored(this.entry, transaction);
+      void this.registry.host.stored(this.entry, transaction);
     });
-    return { held: false, transaction, settled };
+    return { withheld: false, transaction, response };
   }
 
   /**
@@ -369,8 +369,8 @@ export class Room {
    * -- or have the server carry it into their documents, where this client's
    * own copy would arrive and say it twice.
    */
-  #kept(why: string): Withheld {
-    const { transaction, settled } = this.held.workspace.keep(
+  #recordDraft(why: string): Withheld {
+    const { transaction, response } = this.registry.workspace.recordDraft(
       this.entry,
       this.text.toString(),
     );
@@ -378,7 +378,7 @@ export class Room {
       this.#waiting.push(transaction);
       void this.#carriedByTheHost();
     }
-    return { held: true, why, draft: transaction, settled };
+    return { withheld: true, why, draft: transaction, response };
   }
 
   /**
@@ -392,7 +392,7 @@ export class Room {
   async #carriedByTheHost(): Promise<void> {
     if (this.replaced !== undefined) return;
     try {
-      await this.held.host.handOver(this.entry, Y.encodeStateAsUpdate(this.doc));
+      await this.registry.host.handOver(this.entry, Y.encodeStateAsUpdate(this.doc));
     } catch {
       /**
        * BEST EFFORT, and nothing is lost when it fails.
@@ -421,7 +421,7 @@ export class Room {
     if (this.#waiting.length === 0) return;
     const gone = this.#waiting;
     this.#waiting = [];
-    await this.held.workspace.cleared(gone);
+    await this.registry.workspace.cleared(gone);
   }
 
   /**
@@ -434,16 +434,16 @@ export class Room {
    * refusing -- `send` is the one that refuses, and by then there is nothing
    * left to wait for.
    */
-  async store(): Promise<Written> {
+  async saveVersion(): Promise<Written> {
     if (this.attached) await this.#provider?.handedOver();
-    const sent = this.send();
-    if (sent.held) {
-      await sent.settled;
+    const sent = this.submitVersion();
+    if (sent.withheld) {
+      await sent.response;
       return sent;
     }
-    const answer = await sent.settled;
+    const answer = await sent.response;
     return {
-      held: false,
+      withheld: false,
       transaction: sent.transaction,
       rejected: answer.rejected,
     };
@@ -471,18 +471,18 @@ export class Room {
    */
   async standDown(at: contract.Version, mime: string | null): Promise<void> {
     if (this.replaced !== undefined) return;
-    const kept = await this.#keepWhatWasShowing();
-    this.replaced = { entry: this.entry, at, mime, kept };
+    const savedAs = await this.#keepWhatWasShowing();
+    this.replaced = { entry: this.entry, at, mime, savedAs };
   }
 
   async #keepWhatWasShowing(): Promise<contract.Transaction | null> {
     const showing = this.text.toString();
     if (showing.length === 0) return null;
-    const { transaction, settled } = this.held.workspace.keep(
+    const { transaction, response } = this.registry.workspace.recordDraft(
       this.entry,
       showing,
     );
-    await settled;
+    await response;
     return transaction;
   }
 
@@ -491,7 +491,7 @@ export class Room {
   }
 
   async #attached(): Promise<void> {
-    const { provider, leave } = this.held.enter(this.entry, this.doc);
+    const { provider, leave } = this.registry.enter(this.entry, this.doc);
     this.#provider = provider;
     this.#leave = leave;
     this.#ahead = provider.ahead();
@@ -584,7 +584,7 @@ export class Room {
  * open before it could hear anything.
  */
 export class Rooms {
-  readonly held = new Map<string, Room>();
+  readonly rooms = new Map<string, Room>();
 
   /**
    * Whether this registry has been put away.
@@ -607,7 +607,7 @@ export class Rooms {
    * A room that is detached or replaced still counts. Its text is in a CRDT
    * either way, and that is the whole reason the second route is closed.
    */
-  speaksFor = (entry: string): boolean => this.held.has(entry);
+  speaksFor = (entry: string): boolean => this.rooms.has(entry);
 
   #watching: () => void;
 
@@ -631,7 +631,7 @@ export class Rooms {
    * room from a file it does not have yet.
    */
   #tell(change: Change) {
-    const room = this.held.get(change.entry);
+    const room = this.rooms.get(change.entry);
     if (room === undefined) return;
     if (change.kind === "appeared") return void room.catchUp();
     if (change.kind === "removed") return void room.standDown(change.by, null);
@@ -650,7 +650,7 @@ export class Rooms {
   }
 
   get(entry: string): Room | undefined {
-    return this.held.get(entry);
+    return this.rooms.get(entry);
   }
 
   /**
@@ -672,15 +672,15 @@ export class Rooms {
    * theirs to write, and the file ends up saying everything twice.
    */
   async open(entry: string): Promise<Room> {
-    const already = this.held.get(entry);
+    const already = this.rooms.get(entry);
     /** Never one that is being put down -- see `Room.going`. */
     const room =
       already !== undefined && !already.going ? already : new Room(entry, this);
-    this.held.set(entry, room);
+    this.rooms.set(entry, room);
     room.opening = "recalling";
     await room.recall();
     room.opening = "settling";
-    room.base = await this.host.settle(entry);
+    room.base = await this.host.bringRoomUpToFile(entry);
     room.opening = "attaching";
     await room.attach();
     /**
@@ -719,7 +719,7 @@ export class Rooms {
    * room rather than adopting one that is being put down.
    */
   async close(entry: string): Promise<void> {
-    const room = this.held.get(entry);
+    const room = this.rooms.get(entry);
     if (room === undefined) return;
     await room.dispose();
     /**
@@ -739,7 +739,7 @@ export class Rooms {
      * as long as anything here is holding this file, text must not go round
      * it.
      */
-    if (this.held.get(entry) === room) this.held.delete(entry);
+    if (this.rooms.get(entry) === room) this.rooms.delete(entry);
   }
 
   async dispose(): Promise<void> {
@@ -754,8 +754,8 @@ export class Rooms {
      * it. Settled rather than all: put every one down, then carry on.
      */
     await Promise.allSettled(
-      [...this.held.values()].map((room) => room.dispose()),
+      [...this.rooms.values()].map((room) => room.dispose()),
     );
-    this.held.clear();
+    this.rooms.clear();
   }
 }

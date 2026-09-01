@@ -86,7 +86,7 @@ class Keeper:
             if await self._standing(entry) == file.version:
                 return file.version
             await self._created_once(entry)
-            await self._settle(entry, file)
+            await self._bring_room_up_to_file(entry, file)
         return await self._standing(entry)
 
     async def stored(self, entry: str, version: str) -> None:
@@ -149,7 +149,7 @@ class Keeper:
         self._known[entry] = (True, base)
         await self._standings.remember(entry, base)
 
-    async def _settle(self, entry: str, file: Held) -> None:
+    async def _bring_room_up_to_file(self, entry: str, file: Held) -> None:
         room = standing_of(
             await self._collaboration.document(entry), await self._standing(entry)
         )

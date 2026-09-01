@@ -63,6 +63,47 @@ type Reported = ContentChanged & {
 };
 
 /**
+ * What the person did with the caret, by the kind VS Code tagged the edit
+ * with. `changed` is the honest answer when it named a kind we have no word
+ * for.
+ */
+const AT_THE_CARET: Record<string, Did> = {
+  type: "typed",
+  paste: "pasted",
+  cut: "cut",
+  compositionType: "composed",
+  compositionEnd: "composed",
+  executeCommand: "ran",
+  executeCommands: "ran",
+};
+
+/**
+ * Offered by the editor, taken by the person -- so their doing. Which one it
+ * was is worth keeping, and travels in `via`.
+ */
+const OFFERED = new Set([
+  "suggest",
+  "snippet",
+  "codeAction",
+  "inlineCompletionAccept",
+  "inlineCompletionPartialAccept",
+]);
+
+/**
+ * Written on the person's behalf by an assistant. Not nobody, but not them
+ * either, which is the distinction this file exists to make.
+ */
+const AN_ASSISTANT = new Set([
+  "Chat.applyEdits",
+  "Chat.undoEdits",
+  "Chat.reset",
+  "inlineChat.applyEdits",
+]);
+
+/** The whole buffer swapped out -- most often a binding seeding the model. */
+const THE_WHOLE_BUFFER = "setValue";
+
+/**
  * What a single edit source means, or why it is not this person's doing.
  *
  * The source strings are VS Code's own (`EditSources` in
@@ -70,51 +111,14 @@ type Reported = ContentChanged & {
  * treated as programmatic: better to drop an edit that was the user's than to
  * attribute one that was not.
  */
-const gestureOf = (
-  source: EditSource,
-): { did: Did; via?: string } | Ignored => {
+const gestureOf = (source: EditSource): { did: Did; via?: string } | Ignored => {
   const { source: what, kind, detailedSource } = source.metadata;
   const via = detailedSource ?? undefined;
-  switch (what) {
-    case "cursor":
-      switch (kind) {
-        case "type":
-          return { did: "typed", via };
-        case "paste":
-          return { did: "pasted", via };
-        case "cut":
-          return { did: "cut", via };
-        case "compositionType":
-        case "compositionEnd":
-          return { did: "composed", via };
-        case "executeCommand":
-        case "executeCommands":
-          return { did: "ran", via };
-        default:
-          return { did: "changed", via };
-      }
-    // Offered by the editor, taken by the person. Their doing, and the
-    // distinction between them is worth keeping, so `via` names which.
-    case "suggest":
-    case "snippet":
-    case "codeAction":
-    case "inlineCompletionAccept":
-    case "inlineCompletionPartialAccept":
-      return { did: "accepted", via: what };
-    // Written on the person's behalf by an assistant. Not nobody, but not
-    // them either, which is the distinction this class exists to make.
-    case "Chat.applyEdits":
-    case "Chat.undoEdits":
-    case "Chat.reset":
-    case "inlineChat.applyEdits":
-      return "assistant";
-    // The whole buffer swapped out -- most often `MonacoBinding` seeding the
-    // model with the room's contents the moment it attaches.
-    case "setValue":
-      return "reset";
-    default:
-      return "programmatic";
-  }
+  if (what === "cursor") return { did: AT_THE_CARET[kind ?? ""] ?? "changed", via };
+  if (OFFERED.has(what)) return { did: "accepted", via: what };
+  if (AN_ASSISTANT.has(what)) return "assistant";
+  if (what === THE_WHOLE_BUFFER) return "reset";
+  return "programmatic";
 };
 
 /**

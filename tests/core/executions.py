@@ -64,15 +64,15 @@ async def test_a_snapshot_keeps_every_entry_at_its_versions(api: Api):
         headers={"X-User-Email": api.user},
     )
     assert answer.status_code == 200, answer.text
-    kept = answer.json()["entries"]
-    assert len(kept) == 1
-    assert kept[0]["entry"] == entry
+    entries = answer.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["entry"] == entry
     """All four, because together they ARE the entry -- a snapshot that kept
     only content could not say what the file was called at the time."""
-    assert kept[0]["name_version"] == metadata["name_version"]
-    assert kept[0]["parent_version"] == metadata["parent_version"]
-    assert kept[0]["deleted_version"] == metadata["deleted_version"]
-    assert kept[0]["content_version"] == metadata["content_version"]
+    assert entries[0]["name_version"] == metadata["name_version"]
+    assert entries[0]["parent_version"] == metadata["parent_version"]
+    assert entries[0]["deleted_version"] == metadata["deleted_version"]
+    assert entries[0]["content_version"] == metadata["content_version"]
 
 
 async def test_a_snapshot_of_a_state_that_never_was_is_refused(api: Api):

@@ -15,6 +15,7 @@
     startPersistence,
   } from "$wsfs";
   import { enteringWith } from "$wsfs/collaboration/liveblocks";
+  import { baseUrl } from "$lib/harness/liveblocks";
   import { toast } from "svelte-sonner";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -53,7 +54,7 @@
    */
   let room = $state<Reclamation>({ phase: "idle" });
   let unwatch: (() => void) | undefined;
-  let kept: Keeping | undefined;
+  let keeping: Keeping | undefined;
 
   /**
    * Queued work whose bytes are gone. An event, not a state -- it happened
@@ -91,11 +92,14 @@
    * client from the filesystem would be a dependency nobody declared.
    */
   let entering = $state<Enter>();
+  /** Who this page is, once the URL has said. */
+  let who = $state(USER);
 
   const start = async () => {
     try {
       const { searchParams } = page.url;
       const email = searchParams.get("user") ?? USER;
+      who = email;
       id = searchParams.get("project") ?? (await project(email));
       const newUrl = new URL(page.url);
       newUrl.searchParams.set("user", email);
@@ -110,6 +114,7 @@
 
       entering = enteringWith(
         createClient({
+          baseUrl: baseUrl(),
           authEndpoint: async (room: string | undefined) => {
             const answer = await fetch(
               `/liveblocks/token?rooms=${encodeURIComponent(room ?? "")}`,
@@ -125,7 +130,7 @@
         workspace: id,
         transport: http(BACKEND, asUser(email)),
         bytes: persistence.database.bytes,
-        kept: persistence.database.kept,
+        outboxStore: persistence.database.outboxStore,
         restored: persistence.database.restored,
         lost: (entries) => cannotBeSent(entries.length),
       });
@@ -141,12 +146,12 @@
    * A page that is navigating away can wait for the queue's bookkeeping to
    * reach the disk, and a page that is being killed cannot -- so the one that
    * can, does. Without it an answer still on its way is simply lost, and the
-   * next visit calls work that is safely on the server unsettled.
+   * next visit calls work that is safely on the server unanswered.
    */
   onDestroy(() => {
     unwatch?.();
     workspace?.stop();
-    void kept?.flushed();
+    void keeping?.flushed();
   });
 </script>
 
@@ -157,7 +162,15 @@
     {#if failure}
       <p class="text-destructive p-4 text-sm">{failure}</p>
     {:else if workspace && entering}
-      <WorkspacePane {workspace} {entering} {storage} {room} courseEvent={EVENT} />
+      <WorkspacePane
+        {workspace}
+        {entering}
+        base={BACKEND}
+        authorize={asUser(who)}
+        {storage}
+        {room}
+        courseEvent={EVENT}
+      />
     {:else}
       <p class="text-muted-foreground p-4 text-sm">Opening a workspace…</p>
     {/if}

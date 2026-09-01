@@ -23,18 +23,18 @@ export const saving = (): { saved: () => Saved[]; stop: () => void } => {
   const madeUrl = URL.createObjectURL;
   const clicked = HTMLAnchorElement.prototype.click;
   /** The blob the URL just handed out, for the click that is about to use it. */
-  const held = new Map<string, Blob>();
+  const withheld = new Map<string, Blob>();
   let issued = 0;
 
   URL.createObjectURL = ((source: Blob | MediaSource) => {
     if (!(source instanceof Blob)) return madeUrl.call(URL, source);
     const url = `blob:captured-${(issued += 1)}`;
-    held.set(url, source);
+    withheld.set(url, source);
     return url;
   }) as typeof URL.createObjectURL;
 
   HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
-    const blob = held.get(this.getAttribute("href") ?? "");
+    const blob = withheld.get(this.getAttribute("href") ?? "");
     if (blob === undefined) return clicked.call(this);
     saved.push({ name: this.download, blob });
   };

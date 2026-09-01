@@ -13,7 +13,7 @@
  */
 import { asText, digestOf, type Digest, type Store } from "./bytes";
 import type { Id, Transaction } from "./contract";
-import { referenced, type Faltering, type Kept, type Restored } from "./kept";
+import { referenced, type Faltering, type OutboxStore, type Restored } from "./outbox-store";
 import {
   alone,
   crowded,
@@ -129,11 +129,11 @@ const isFull = (reason: unknown) =>
 const troubleFrom = (reason: unknown): Faltering =>
   isFull(reason)
     ? {
-        says: "there is no room left to write down work that has not been sent",
+        message: "there is no room left to write down work that has not been sent",
         full: true,
       }
     : {
-        says:
+        message:
           "work that has not been sent is not being written down: " +
           (reason instanceof Error ? reason.message : String(reason)),
         full: false,
@@ -174,7 +174,7 @@ export const requestPersistence = async (): Promise<boolean> => {
 
 export type Persistence = {
   bytes: Store;
-  kept: Kept;
+  outboxStore: OutboxStore;
   restored: Restored;
   /**
    * Whether the queue is actually reaching the disk, and what is wrong if not.
@@ -245,9 +245,9 @@ export const persistenceMechanism = async (
   const watchers = new Set<() => void>();
 
   const nowSaying = (trouble: Faltering | undefined) => {
-    const before = faltering?.says;
+    const before = faltering?.message;
     faltering = trouble;
-    if (before !== trouble?.says)
+    if (before !== trouble?.message)
       for (const changed of [...watchers]) changed();
     /**
      * A store that has just said it is FULL is the one moment worth sweeping
@@ -294,7 +294,7 @@ export const persistenceMechanism = async (
     entry,
   });
 
-  const kept: Kept = {
+  const outboxStore: OutboxStore = {
     /**
      * ONE IndexedDB transaction, which is what makes it indivisible. The
      * amendment an eviction makes to the write behind it is the only thing
@@ -308,7 +308,9 @@ export const persistenceMechanism = async (
           .objectStore(QUEUED);
         await Promise.all([
           ...written.map((entry) => awaited(store.put(row(entry)))),
-          ...gone.map((one) => awaited(store.delete(keyed(workspace, one)))),
+          ...gone.map((transaction) =>
+            awaited(store.delete(keyed(workspace, transaction))),
+          ),
         ]);
       }),
     answered: (transactions) => {
@@ -324,7 +326,7 @@ export const persistenceMechanism = async (
   /**
    * When each digest was last stored.
    *
-   * A release is decided from what the queue held when it was ASKED for, and
+   * A release is decided from what the queue rowFor when it was ASKED for, and
    * it runs later. Between the two, the same bytes can be stored again --
    * routinely, because the store is content-addressed and identical text
    * hashes to one place. Deleting them then would take bytes a live entry has
@@ -333,7 +335,7 @@ export const persistenceMechanism = async (
   let tick = 0;
   const stamped = new Map<Digest, number>();
 
-  const held = (digest: Digest) =>
+  const rowFor = (digest: Digest) =>
     awaited(
       database
         .transaction(BYTES, "readonly")
@@ -347,7 +349,7 @@ export const persistenceMechanism = async (
      * the bytes" mean anything. Stored the other way round, a tab dying in
      * between leaves bytes that nothing points at -- lost, and undetectably
      * so. This way it leaves a row naming bytes that are not there, which is
-     * lost and SAYS so, and `presenting` reports it and drops it.
+     * lost and SAYS so, and `prepareSubmissions` reports it and drops it.
      */
     put: async (content, at) => {
       const digest = at ?? (await digestOf(content));
@@ -372,9 +374,9 @@ export const persistenceMechanism = async (
       );
       return digest;
     },
-    read: async (digest) => (await held(digest))?.bytes,
+    read: async (digest) => (await rowFor(digest))?.bytes,
     text: async (digest) => {
-      const found = await held(digest);
+      const found = await rowFor(digest);
       return found === undefined ? undefined : asText(found.bytes);
     },
     /**
@@ -492,7 +494,7 @@ export const persistenceMechanism = async (
 
   return {
     bytes,
-    kept,
+    outboxStore,
     faltering: () => faltering,
     watch: (changed) => (watchers.add(changed), () => watchers.delete(changed)),
     flushed: async () => {

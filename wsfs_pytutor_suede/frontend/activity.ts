@@ -122,7 +122,7 @@ export class Activity {
    * Cheap to call from anywhere, including from paths that run on every
    * keystroke: outside a window it is a comparison against `undefined`.
    */
-  note(kind: string, what: Record<string, unknown> = {}): void {
+  note(kind: string, detail: Record<string, unknown> = {}): void {
     if (this.#episode === undefined) return;
     if (this.#noted >= (this.#wiring.limit ?? LIMIT)) {
       this.#dropped += 1;
@@ -134,7 +134,7 @@ export class Activity {
      * offset into the document, say -- cannot overwrite the moment it
      * happened at. The timestamp is the one thing here nobody else may set.
      */
-    this.#moments.push({ ...what, at: this.#now(), kind });
+    this.#moments.push({ ...detail, at: this.#now(), kind });
     if (this.#moments.length >= (this.#wiring.cap ?? CAP)) void this.#send();
   }
 

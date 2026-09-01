@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { inMemory } from "../../../wsfs_core_suede/frontend/bytes";
 import { mint } from "../../../wsfs_core_suede/frontend/identity";
-import { remembering } from "../../../wsfs_core_suede/frontend/kept";
+import { createInMemoryStore } from "../../../wsfs_core_suede/frontend/outbox-store";
 import type { Unreadable } from "../../../wsfs_core_suede/frontend/outbox";
 import { connect } from "../../../wsfs_core_suede/frontend/workspace";
 import { queue as outbox, textOf } from "../../../wsfs_core_suede/frontend/outbox";
@@ -37,18 +37,18 @@ const writing = (id: string): Write =>
 describe("a queued write whose bytes are gone", () => {
   it("costs that transaction and nothing else", async () => {
     const wire = server();
-    let store = remembering();
+    let store = createInMemoryStore();
     const lost: Unreadable[] = [];
 
     const open = (over = inMemory()) => {
-      const held = remembering(store.restored());
-      store = held;
+      const reopened = createInMemoryStore(store.restored());
+      store = reopened;
       return connect({
         workspace: "alpha",
         transport: wire,
         bytes: over,
-        kept: held.kept,
-        restored: held.restored(),
+        outboxStore: store.outboxStore,
+        restored: store.restored(),
         timing: quickly,
         lost: (entries) => lost.push(...entries),
       });
@@ -62,7 +62,7 @@ describe("a queued write whose bytes are gone", () => {
 
     wire.reachable(false);
     const stranded = first.write("notes.py", "start\nwanted\n");
-    void stranded.settled.catch(() => undefined);
+    void stranded.response.catch(() => undefined);
     await settle();
     first.stop();
 
@@ -83,7 +83,7 @@ describe("a queued write whose bytes are gone", () => {
 
     /** Above all, the workspace still works. */
     const after = again.write("notes.py", "start\nlater\n");
-    await after.settled;
+    await after.response;
     await settle();
     expect(wire.text(entry)).toContain("later");
     again.stop();
@@ -93,7 +93,7 @@ describe("a queued write whose bytes are gone", () => {
 /**
  * The other half, and the one Initialize cannot reach.
  *
- * A client whose stream is healthy never re-enters Initialize, so `presenting`
+ * A client whose stream is healthy never re-enters Initialize, so `prepareSubmissions`
  * never gets a turn. If the bytes behind a queued write go while that client
  * is running -- another tab releasing a payload this one's delta was the last
  * reader of -- the pump is the only party that finds out, and it used to stop

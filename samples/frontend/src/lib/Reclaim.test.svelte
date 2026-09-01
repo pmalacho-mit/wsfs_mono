@@ -22,9 +22,9 @@
   name="opens a store whose version has moved on"
   body={async (harness: any) => {
     const pocket = harness.set(new Pocket());
-    const held: Keeping = await persistenceMechanism(mint());
-    pocket.said = `restored ${held.restored.entries.length}`;
-    harness.expect(held.restored.entries).toEqual([]);
+    const keeping: Keeping = await persistenceMechanism(mint());
+    pocket.said = `restored ${keeping.restored.entries.length}`;
+    harness.expect(keeping.restored.entries).toEqual([]);
     /** And a second open, which is the one a version bump can hang. */
     const again = await persistenceMechanism(mint());
     harness.expect(again.reclamation()).toEqual({ phase: "idle" });
@@ -40,25 +40,25 @@
   body={async (harness: any) => {
     const pocket = harness.set(new Pocket());
     const workspace = mint();
-    const held = await persistenceMechanism(workspace);
+    const keeping = await persistenceMechanism(workspace);
 
     /**
      * Stored and never captured, which is exactly what a tab dying between
      * the payload and the row that names it leaves behind. Nothing else in
      * this client has ever collected one.
      */
-    const digest = await held.bytes.put("garbage nobody claims\n");
-    harness.expect(await held.bytes.text(digest)).toContain("garbage");
+    const digest = await keeping.bytes.put("garbage nobody claims\n");
+    harness.expect(await keeping.bytes.text(digest)).toContain("garbage");
 
     /**
      * The sweep only takes bytes older than it, so this waits rather than
      * pretending: the guard is what makes it safe beside another tab.
      */
     await new Promise((carry) => setTimeout(carry, 30));
-    const found = await held.reclaim();
+    const found = await keeping.reclaim();
     pocket.said = JSON.stringify(found);
 
-    harness.expect(await held.bytes.text(digest)).toBeUndefined();
+    harness.expect(await keeping.bytes.text(digest)).toBeUndefined();
     harness.expect(["clear", "freed", "short"]).toContain(found.phase);
   }}
 >

@@ -9,9 +9,11 @@
 import { connect, http, inMemory, type Workspace } from "$wsfs";
 import { assistant, type Assistant } from "$assistant";
 
-const BACKEND = "/wsfs";
+/** Where the sample host mounts wsfs, and how a test says who it is. */
+export const BACKEND = "/wsfs";
+export const ADA = "ada@example.com";
 
-const asUser = (email: string) => async () => ({ "X-User-Email": email });
+export const asUser = (email: string) => async () => ({ "X-User-Email": email });
 
 /**
  * A workspace, plus the path list the tests wait on.

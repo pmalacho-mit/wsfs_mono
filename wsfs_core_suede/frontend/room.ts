@@ -60,7 +60,7 @@ export type Host = {
    * document, advancing it is a write, so one person saving would cost a
    * round trip to the collaboration server for every client that heard.
    */
-  settle: (entry: string) => Promise<string | null>;
+  bringRoomUpToFile: (entry: string) => Promise<string | null>;
 
   /** A member of this room wrote the file, so the room already holds the text. */
   stored: (entry: string, version: string) => Promise<void>;
@@ -96,7 +96,7 @@ export type Persist = (
  */
 export type Trouble = {
   /** What to tell the person at the keyboard. */
-  says: string;
+  message: string;
   /**
    * Whether this passes on its own.
    *
@@ -114,7 +114,7 @@ export type Replacement = {
   /** The mime the file became, or `null` when it was deleted instead. */
   mime: string | null;
   /** Where the text it was showing went, so that it is not lost with the room. */
-  kept: contract.Transaction | null;
+  savedAs: contract.Transaction | null;
 };
 
 /**
@@ -125,7 +125,7 @@ export type Replacement = {
  * be retried.
  */
 export type Withheld = {
-  held: true;
+  withheld: true;
   why: string;
   /** The draft the text went into, or `null` when there was no text to keep. */
   draft: contract.Transaction | null;
@@ -136,7 +136,7 @@ export type Withheld = {
    * because `send` answers synchronously -- a caller describing what the user
    * is looking at needs the id at the moment it asks. `store` waits.
    */
-  settled: Promise<contract.Response> | null;
+  response: Promise<contract.Response> | null;
 };
 
 /**
@@ -149,15 +149,15 @@ export type Withheld = {
 export type Sending =
   | Withheld
   | {
-      held: false;
+      withheld: false;
       transaction: contract.Transaction;
-      settled: Promise<contract.Response>;
+      response: Promise<contract.Response>;
     };
 
 /** The same write, once the server has ruled on it. */
 export type Written =
   | Withheld
-  | { held: false; transaction: contract.Transaction; rejected: boolean };
+  | { withheld: false; transaction: contract.Transaction; rejected: boolean };
 
 const CONTENT = "content";
 

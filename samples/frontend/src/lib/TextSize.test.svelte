@@ -38,7 +38,10 @@
     rowFor,
     tabs,
     until,
-  } from "./harness/testing.svelte";
+    ADA,
+  BACKEND,
+  asUser,
+} from "./harness/testing.svelte";
   import Workspace, {
     Model,
   } from "$pytutor/Workspace.svelte";
@@ -130,7 +133,7 @@
     [...(openMenu(within)?.querySelectorAll("button") ?? [])] as HTMLElement[];
 
   const said = (within: HTMLElement) =>
-    items(within).map((one) => one.textContent?.trim());
+    items(within).map((item) => item.textContent?.trim());
 
   const ATTACHED = [
     { entry: "entry-0", path: "/lecture/slides.py", executions: 0 },
@@ -467,10 +470,18 @@
     await delay({ frames: 2 });
     expect(pocket.textSize.scale).toBe(1);
     expect(new TextSize(panel).scale).toBe(1);
+    /**
+     * HIDDEN RATHER THAN REMOVED, and the slider's own comment says why at
+     * length: a readout that leaves the row narrows the group and slides the
+     * track out from under the pointer dragging it. So what "stops saying a
+     * number" means here is `data-changed="false"`, not an absent element.
+     */
     expect(
-      container.querySelector("[data-region='text-size-percent']"),
+      container
+        .querySelector("[data-region='text-size-percent']")
+        ?.getAttribute("data-changed"),
       "and stops saying a number once it is back where it started",
-    ).toBeNull();
+    ).toBe("false");
 
     forget();
   }}
@@ -569,8 +580,19 @@
     /**
      * The SAME constant gap, not a scaled one: the menu is chrome, and where
      * it opens is a fact about the row rather than about the type in it.
+     *
+     * A WHOLE PIXEL OF SLACK, not the half that `toBeCloseTo(_, 0)` allows.
+     * Both gaps are already sub-pixel, and a zoomed subtree rounds its edges
+     * onto different device pixels at 100% and at 200% -- so half a pixel is
+     * a tolerance that a loaded machine fails on rounding nobody could see,
+     * which it did. The bug this guards against multiplied the gap by the
+     * zoom and grew it further down the panel; at 200% that is pixels, not
+     * fractions, so a pixel of slack still catches every bit of it.
      */
-    expect(after, `${after}px from the row at 200%`).toBeCloseTo(before, 0);
+    expect(
+      Math.abs(after - before),
+      `${after}px from the row at 200%, ${before}px at 100%`,
+    ).toBeLessThan(1);
     expect(after, "and still a handful of pixels, not a scaled gap").toBeLessThan(6);
     expect(said(container)).toContain("Rename");
     await capture("png").uri;
@@ -629,6 +651,8 @@
 {#snippet shell(pocket: Shell)}
   <div class="bg-background text-foreground h-[34rem] w-full">
     <Workspace
+          base={BACKEND}
+          authorize={asUser(ADA)}
       model={pocket.model}
       workspace={pocket.workspace}
       entering={pocket.entering}

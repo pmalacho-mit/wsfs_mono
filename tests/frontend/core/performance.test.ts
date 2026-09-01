@@ -29,9 +29,9 @@ const timed = async (what: string, runs: number, work: () => Promise<unknown>) =
   return totalMs;
 };
 
-const settled = (workspace: Workspace, holds: () => boolean, within = 30_000) =>
+const waitUntil = (workspace: Workspace, holds: () => boolean, within = 30_000) =>
   new Promise<void>((done, fail) => {
-    const deadline = setTimeout(() => fail(new Error(`never settled`)), within);
+    const deadline = setTimeout(() => fail(new Error(`condition never held`)), within);
     const finish = () => (clearTimeout(deadline), stop(), done());
     const stop = workspace.watch(() => holds() && finish());
     if (holds()) finish();
@@ -60,7 +60,7 @@ describeLive("cost", () => {
   it("measures a cold connect against an empty workspace", async () => {
     const workspace = await opened();
     const elapsed = await timed("connect, empty workspace", 1, () =>
-      settled(workspace, () => true),
+      waitUntil(workspace, () => true),
     );
     workspace.stop();
     expect(elapsed).toBeGreaterThan(0);
@@ -73,14 +73,14 @@ describeLive("cost", () => {
       transport: transport(),
       bytes: inMemory(),
     });
-    await settled(workspace, () => true);
+    await waitUntil(workspace, () => true);
 
     const count = 50;
     await timed(`create x${count}`, count, async () => {
       for (let n = 0; n < count; n += 1) {
-        await workspace.create(`file-${n}.py`, `# file ${n}\n`).settled;
+        await workspace.create(`file-${n}.py`, `# file ${n}\n`).response;
       }
-      await settled(workspace, () => workspace.index().paths().length >= count);
+      await waitUntil(workspace, () => workspace.index().paths().length >= count);
     });
     workspace.stop();
 
@@ -90,7 +90,7 @@ describeLive("cost", () => {
       bytes: inMemory(),
     });
     const elapsed = await timed(`connect, ${count} entries`, 1, () =>
-      settled(rejoining, () => rejoining.index().paths().length >= count),
+      waitUntil(rejoining, () => rejoining.index().paths().length >= count),
     );
     rejoining.stop();
     expect(elapsed).toBeGreaterThan(0);
@@ -106,12 +106,12 @@ describeLive("cost", () => {
     let at = "";
     for (let level = 0; level < depth; level += 1) {
       at = at === "" ? `level-${level}` : `${at}/level-${level}`;
-      await workspace.folder(at).settled;
+      await workspace.folder(at).response;
       // Each level is the next one's parent, and a parent has to be CONFIRMED
       // before a child can name it -- otherwise this measures the sync loop
       // catching up rather than the server judging a placement.
       const holder = at;
-      await settled(workspace, () => workspace.index().at(holder) !== undefined);
+      await waitUntil(workspace, () => workspace.index().at(holder) !== undefined);
     }
     return at;
   };
@@ -125,9 +125,9 @@ describeLive("cost", () => {
     const count = 25;
     await timed(`create x${count} at depth ${DEPTH}`, count, async () => {
       for (let n = 0; n < count; n += 1) {
-        await workspace.create(`${deepest}/file-${n}.py`, `# ${n}\n`).settled;
+        await workspace.create(`${deepest}/file-${n}.py`, `# ${n}\n`).response;
       }
-      await settled(workspace, () => workspace.index().under(deepest).length >= count);
+      await waitUntil(workspace, () => workspace.index().under(deepest).length >= count);
     });
 
     workspace.stop();
@@ -138,14 +138,14 @@ describeLive("cost", () => {
     const deepest = await nested(workspace, DEPTH);
 
     const count = 15;
-    for (let n = 0; n < count; n += 1) await workspace.create(`mover-${n}.py`, "x").settled;
-    await settled(workspace, () => workspace.index().paths().length >= DEPTH + count);
+    for (let n = 0; n < count; n += 1) await workspace.create(`mover-${n}.py`, "x").response;
+    await waitUntil(workspace, () => workspace.index().paths().length >= DEPTH + count);
 
     await timed(`move x${count} to depth ${DEPTH}`, count, async () => {
       for (let n = 0; n < count; n += 1) {
-        await workspace.move(`mover-${n}.py`, `${deepest}/mover-${n}.py`).settled;
+        await workspace.move(`mover-${n}.py`, `${deepest}/mover-${n}.py`).response;
       }
-      await settled(workspace, () => workspace.index().under(deepest).length >= count);
+      await waitUntil(workspace, () => workspace.index().under(deepest).length >= count);
     });
 
     workspace.stop();
@@ -190,13 +190,13 @@ describeLive("cost", () => {
 
   it("measures the path index over a wide tree", async () => {
     const workspace = await opened();
-    await settled(workspace, () => true);
+    await waitUntil(workspace, () => true);
 
     const count = 100;
     for (let n = 0; n < count; n += 1) {
-      await workspace.create(`wide-${n}.py`, "x").settled;
+      await workspace.create(`wide-${n}.py`, "x").response;
     }
-    await settled(workspace, () => workspace.index().paths().length >= count);
+    await waitUntil(workspace, () => workspace.index().paths().length >= count);
 
     await timed(`index over ${count} entries x200`, 200, async () => {
       for (let n = 0; n < 200; n += 1) workspace.index().paths();

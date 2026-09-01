@@ -24,10 +24,10 @@ const DIRECTORY = { directory: true } as const;
  */
 const OPAQUE = "application/octet-stream";
 
-const sized = (held: Contents) =>
-  typeof held === "string"
-    ? new TextEncoder().encode(held).byteLength
-    : held.byteLength;
+const sized = (contents: Contents) =>
+  typeof contents === "string"
+    ? new TextEncoder().encode(contents).byteLength
+    : contents.byteLength;
 
 export const filesystem = (
   workspace: Workspace,
@@ -37,9 +37,9 @@ export const filesystem = (
     workspace.index().at(path);
 
   const contentsOf = async (path: Path): Promise<Contents | undefined> => {
-    const held = (await workspace.read(path)) ?? undefined;
-    if (held === undefined) return undefined;
-    return held.kind === "text" ? held.text : held.bytes;
+    const content = (await workspace.read(path)) ?? undefined;
+    if (content === undefined) return undefined;
+    return content.kind === "text" ? content.text : content.bytes;
   };
 
   return {
@@ -72,11 +72,11 @@ export const filesystem = (
       if (override !== undefined)
         return { size: sized(override), directory: false };
 
-      const held = workspace.holding(path);
-      return held === undefined
+      const content = workspace.holding(path);
+      return content === undefined
         ? undefined
         : {
-            size: sized(held.kind === "text" ? held.text : held.bytes),
+            size: sized(content.kind === "text" ? content.text : content.bytes),
             directory: false,
           };
     },
@@ -85,7 +85,7 @@ export const filesystem = (
       // The filesystem's caller waits for the server's answer, because a
       // script that writes a file and reads it back expects to be told.
       if (value === null) {
-        await workspace.folder(path).settled;
+        await workspace.folder(path).response;
         return;
       }
       /**
@@ -99,11 +99,11 @@ export const filesystem = (
           ? await fileOverride?.put(path, value)
           : await fileOverride?.replaced?.(path, value, OPAQUE);
       if (taken) return;
-      await workspace.write(path, value).settled;
+      await workspace.write(path, value).response;
     },
 
-    move: async ({ from, to }) => void (await workspace.move(from, to).settled),
+    move: async ({ from, to }) => void (await workspace.move(from, to).response),
 
-    delete: async (path) => void (await workspace.remove(path).settled),
+    delete: async (path) => void (await workspace.remove(path).response),
   };
 };

@@ -48,17 +48,17 @@
   import { snippets } from "../../python-web-kernel-suede";
   import { Button } from "../../wsfs_svelte_suede/frontend/shadcn/ui/button";
   import { Separator } from "../../wsfs_svelte_suede/frontend/shadcn/ui/separator";
-  import type { SharedTextFile } from "../../wsfs_svelte_suede/frontend/open.svelte";
+  import type { OpenText } from "../../wsfs_svelte_suede/frontend";
   import type { KernelPool } from "./kernel";
 
   let {
     kernelPool,
-    shared,
+    file,
     onFinished,
     onRun,
   }: {
     kernelPool: KernelPool;
-    shared: Pick<SharedTextFile, "id" | "path" | "source" | "executions">;
+    file: Pick<OpenText, "id" | "path" | "showing" | "runs">;
     /** Every run, as it ends. A refused run is not a run and is not reported. */
     onFinished?: (outcome: Outcome) => void;
     /**
@@ -80,7 +80,7 @@
   /**
    * The run in progress, appended to as output arrives.
    *
-   * Kept apart from `shared.executions` until it ends, so a run that is still
+   * Kept apart from `file.runs` until it ends, so a run that is still
    * going does not look like a finished one to anything counting them.
    */
   let live = $state<Output.Specific[]>([]);
@@ -103,12 +103,12 @@
 
     let finished: (outcome: Outcome) => void = () => {};
     const result = new Promise<Outcome>((done) => (finished = done));
-    onRun?.({ entry: shared.id, at, result });
+    onRun?.({ entry: file.id, at, result });
 
     kernelPool.use(async (kernel) => {
       const job = kernel.run({
-        code: shared.source,
-        path: shared.path,
+        code: file.showing,
+        path: file.path,
         on: { output: (output) => (live = [...live, output]) },
       });
       running = job;
@@ -123,8 +123,8 @@
          * Oldest first, which is the order a log is read in: the newest is at
          * the bottom, where the eye already is.
          */
-        shared.executions = [
-          ...shared.executions,
+        file.runs = [
+          ...file.runs,
           { at, outputs: live, ok: outcome.ok, failure },
         ];
         live = [];
@@ -145,25 +145,26 @@
   let following = $state(true);
 
   const watching = () => {
-    const held = view;
-    if (held === undefined) return;
-    following = held.scrollHeight - held.clientHeight - held.scrollTop < 24;
+    const scroller = view;
+    if (scroller === undefined) return;
+    following =
+      scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop < 24;
   };
 
   $effect(() => {
     /** Read so this runs again as output arrives. */
-    void shared.executions.length;
+    void file.runs.length;
     void live.length;
     if (following && view !== undefined) view.scrollTop = view.scrollHeight;
   });
 
   const cleared = () => {
-    shared.executions = [];
+    file.runs = [];
     live = [];
     failure = undefined;
   };
 
-  const anything = $derived(shared.executions.length > 0 || live.length > 0);
+  const anything = $derived(file.runs.length > 0 || live.length > 0);
 </script>
 
 <section
@@ -200,7 +201,7 @@
     </Button>
     <Separator orientation="vertical" class="mx-1 h-4" />
     <span class="text-muted-foreground truncate font-mono text-(length:--text-2xs-mono)">
-      {shared.path}
+      {file.path}
     </span>
   </header>
   <output
@@ -209,7 +210,7 @@
     class="block overflow-auto px-3 pb-3 font-mono text-(length:--text-xs-mono) leading-relaxed whitespace-pre-wrap"
     data-region="outputs"
   >
-    {#each shared.executions as execution, at (execution.at + at)}
+    {#each file.runs as execution, at (execution.at + at)}
       <!-- Delineated, because three runs' output in a row reads as one
            confusing run. The header is what says where each one began. -->
       <div
@@ -239,7 +240,7 @@
         data-region="execution"
         data-ok="running"
       >
-        <span>Run {shared.executions.length + 1}</span>
+        <span>Run {file.runs.length + 1}</span>
         <span>running…</span>
       </div>
       {#each live as produced}

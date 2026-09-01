@@ -75,8 +75,8 @@ export {
 export { CROWDED, crowded, headroom } from "./reclaim";
 export type { Headroom, Reclamation } from "./reclaim";
 export type { Persistence as Keeping } from "./indexed";
-export { nothing, nowhere, remembering } from "./kept";
-export type { Faltering, Kept, Restored } from "./kept";
+export { nothing, nowhere, createInMemoryStore } from "./outbox-store";
+export type { Faltering, OutboxStore, Restored } from "./outbox-store";
 export type { Unreadable } from "./outbox";
 
 /**

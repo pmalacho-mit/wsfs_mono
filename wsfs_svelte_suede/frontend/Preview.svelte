@@ -3,9 +3,9 @@
   import { Button } from "./shadcn/ui/button";
   import type { Held } from "$wsfs";
 
-  let { path, held }: { path: string; held: Held } = $props();
+  let { path, content }: { path: string; content: Held } = $props();
 
-  const binary = $derived(held.kind === "binary" ? held : undefined);
+  const binary = $derived(content.kind === "binary" ? content : undefined);
 
   /**
    * Revoked when the panel goes away, because an object URL outlives the

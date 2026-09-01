@@ -46,7 +46,7 @@ const standing = () => {
       return new Promise<Response>((answer) => answers.set(request.transaction, answer));
     },
     content: async () => ({ kind: "text", text: "" }),
-    store: async () => undefined,
+    uploadBytes: async () => undefined,
     follow: (_workspace, _token, listening) => {
       reading = listening;
       listening.alive();
@@ -72,7 +72,7 @@ const standing = () => {
  * and puts its bytes away before it queues anything, so "after the call" is
  * several turns, not one.
  */
-const settle = async () => {
+const flushTurns = async () => {
   for (let turn = 0; turn < 6; turn += 1) await new Promise((done) => setTimeout(done, 0));
 };
 
@@ -110,7 +110,7 @@ describe("what a workspace says changed", () => {
   const attach = async (entries: Metadata[] = []) => {
     server.holding(entries);
     workspace = connect({ workspace: WORKSPACE, transport: server.transport, bytes: inMemory() });
-    await settle();
+    await flushTurns();
     detach = workspace.watch((changes) => seen.push(...changes));
   };
 
@@ -138,7 +138,7 @@ describe("what a workspace says changed", () => {
     expect(typeof created.transaction).toBe("string");
     expect(seen).toEqual([]);
 
-    await settle();
+    await flushTurns();
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({
       kind: "appeared",
@@ -150,7 +150,7 @@ describe("what a workspace says changed", () => {
   it("says only that it landed when the server confirms this client's own work", async () => {
     await attach();
     const created = workspace.create("a.py", "hello");
-    await settle();
+    await flushTurns();
     seen = [];
 
     server.accept(created.transaction);
@@ -160,7 +160,7 @@ describe("what a workspace says changed", () => {
       transaction: created.transaction,
       value: accepted(created.entry, created.transaction, { name: "a.py" }),
     });
-    await settle();
+    await flushTurns();
 
     // The overlay's removal and the confirmed value cancel exactly, so
     // nothing describes the file as having changed -- a consumer acting on
@@ -175,12 +175,12 @@ describe("what a workspace says changed", () => {
   it("takes a refused create back, and does not blame the transaction for it", async () => {
     await attach();
     const created = workspace.create("a.py", "hello");
-    await settle();
+    await flushTurns();
     seen = [];
 
     server.refuse(created.transaction);
-    await created.settled;
-    await settle();
+    await created.response;
+    await flushTurns();
 
     expect(seen).toHaveLength(1);
     // Marked as a retraction, which is what tells a consumer to act on a
@@ -211,12 +211,12 @@ describe("what a workspace says changed", () => {
     const file = born({ name: "a.py" });
     await attach([file]);
     const moved = workspace.move("a.py", "b.py");
-    await settle();
+    await flushTurns();
     seen = [];
 
     server.refuse(moved.transaction);
-    await moved.settled;
-    await settle();
+    await moved.response;
+    await flushTurns();
 
     // One change, not two: the move kept the parent, and a parent that did not
     // move is not news however many transactions have spoken for it.
@@ -237,7 +237,7 @@ describe("what a workspace says changed", () => {
     await attach([file]);
 
     const written = workspace.write("a.py", "next");
-    await settle();
+    await flushTurns();
 
     expect(seen).toEqual([{ kind: "written", entry: file.id, by: written.transaction }]);
   });
@@ -248,7 +248,7 @@ describe("what a workspace says changed", () => {
     const theirs = mint();
 
     server.announce({ type: "name", id: file.id, transaction: theirs, value: "theirs.py" });
-    await settle();
+    await flushTurns();
 
     expect(seen).toEqual([
       { kind: "renamed", entry: file.id, from: "a.py", to: "theirs.py", by: theirs },
@@ -263,8 +263,8 @@ describe("what a workspace says changed", () => {
 
     seen = [];
     server.refuse(removed.transaction);
-    await removed.settled;
-    await settle();
+    await removed.response;
+    await flushTurns();
     expect(seen).toEqual([
       {
         kind: "restored",
@@ -325,32 +325,32 @@ class Following {
     this.at.set(entry, to);
   }
 
-  private settle(entry: Id): void {
+  private updatePathFor(entry: Id): void {
     const found = this.workspace.entries().get(entry);
     const path = found === undefined ? undefined : this.placed(found);
-    const held = this.at.get(entry);
+    const previous = this.at.get(entry);
     if (path === undefined) return void this.at.delete(entry);
-    if (held === undefined) return void this.at.set(entry, path);
-    if (held !== path) this.carry(entry, held, path);
+    if (previous === undefined) return void this.at.set(entry, path);
+    if (previous !== path) this.carry(entry, previous, path);
   }
 
   appeared({ entry }: Extract<Change, { kind: "appeared" }>) {
-    this.settle(entry);
+    this.updatePathFor(entry);
   }
   vanished({ entry }: Extract<Change, { kind: "vanished" }>) {
     this.at.delete(entry);
   }
   renamed({ entry }: Extract<Change, { kind: "renamed" }>) {
-    this.settle(entry);
+    this.updatePathFor(entry);
   }
   reparented({ entry }: Extract<Change, { kind: "reparented" }>) {
-    this.settle(entry);
+    this.updatePathFor(entry);
   }
   removed({ entry }: Extract<Change, { kind: "removed" }>) {
     this.at.delete(entry);
   }
   restored({ entry }: Extract<Change, { kind: "restored" }>) {
-    this.settle(entry);
+    this.updatePathFor(entry);
   }
   written() {}
 }
@@ -381,7 +381,7 @@ describe("a consumer that only ever hears about changes", () => {
   beforeEach(async () => {
     server = standing();
     workspace = connect({ workspace: WORKSPACE, transport: server.transport, bytes: inMemory() });
-    await settle();
+    await flushTurns();
     following = new Following(workspace);
     detach = workspace.watch((changes) => following.apply(changes));
   });
@@ -399,7 +399,7 @@ describe("a consumer that only ever hears about changes", () => {
 
     const file = following.own(workspace.create("src/a.py", ""));
     following.at.set(file.entry, "src/a.py");
-    await settle();
+    await flushTurns();
     agrees();
 
     server.accept(src.transaction);
@@ -416,7 +416,7 @@ describe("a consumer that only ever hears about changes", () => {
       transaction: file.transaction,
       value: born({ id: file.entry, name: "a.py", parent: src.entry }),
     });
-    await settle();
+    await flushTurns();
 
     // Confirmation announced nothing, so nothing was applied, and it is still
     // right: the optimistic view and the confirmed one agree by construction.
@@ -429,16 +429,16 @@ describe("a consumer that only ever hears about changes", () => {
     following.at.set(src.entry, "src");
     const file = following.own(workspace.create("src/a.py", ""));
     following.at.set(file.entry, "src/a.py");
-    await settle();
+    await flushTurns();
 
     // Confirmed first: an entry that lives only in this client's outbox has
     // nothing for somebody else's event to land on.
     confirm(src, { type: "folder", name: "src", content_version: null });
     confirm(file, { name: "a.py", parent: src.entry });
-    await settle();
+    await flushTurns();
 
     server.announce({ type: "name", id: src.entry, transaction: mint(), value: "lib" });
-    await settle();
+    await flushTurns();
 
     // ONE change moved two paths, which is what an id-addressed consumer buys.
     agrees();
@@ -448,11 +448,11 @@ describe("a consumer that only ever hears about changes", () => {
   it("takes back a create the server refuses, though it was its own", async () => {
     const file = following.own(workspace.create("doomed.py", ""));
     following.at.set(file.entry, "doomed.py");
-    await settle();
+    await flushTurns();
 
     server.refuse(file.transaction);
-    await file.settled;
-    await settle();
+    await file.response;
+    await flushTurns();
 
     agrees();
     expect(following.paths()).toEqual([]);
@@ -463,30 +463,30 @@ describe("a consumer that only ever hears about changes", () => {
     following.at.set(src.entry, "src");
     const mine = following.own(workspace.create("src/mine.py", ""));
     following.at.set(mine.entry, "src/mine.py");
-    await settle();
+    await flushTurns();
 
     confirm(src, { type: "folder", name: "src", content_version: null });
     confirm(mine, { name: "mine.py", parent: src.entry });
-    await settle();
+    await flushTurns();
     agrees();
 
     const theirs = born({ name: "theirs.py" });
     server.announce({ type: "create", id: theirs.id, transaction: theirs.name_version, value: theirs });
-    await settle();
+    await flushTurns();
     agrees();
 
     server.announce({ type: "move", id: theirs.id, transaction: mint(), value: { name: "moved.py", parent: src.entry } });
-    await settle();
+    await flushTurns();
     agrees();
 
     const gone = following.own(workspace.remove("src/mine.py"));
     following.at.delete(mine.entry);
-    await settle();
+    await flushTurns();
     agrees();
 
     server.refuse(gone.transaction);
-    await gone.settled;
-    await settle();
+    await gone.response;
+    await flushTurns();
 
     // The refusal put it back, and the consumer heard about that even though
     // the delete had been its own.

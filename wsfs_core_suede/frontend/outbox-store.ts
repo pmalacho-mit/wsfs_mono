@@ -35,7 +35,7 @@ import type { Entry } from "./outbox";
  * a person can do something about.
  */
 export type Faltering = {
-  says: string;
+  message: string;
   /** Whether the store is simply full, which a person can act on. */
   full: boolean;
 };
@@ -74,7 +74,7 @@ export type Change = { written?: Entry[]; gone?: Transaction[] };
  * the outbox's own bookkeeping wait on a disk, and the queue in memory is
  * already correct -- what this buys is the NEXT page load, not this one.
  */
-export type Kept = {
+export type OutboxStore = {
   /** The queue moved. Applied as one indivisible change. */
   moved: (change: Change) => void;
   /** The server answered these, and no stream event may ever mention them. */
@@ -82,7 +82,7 @@ export type Kept = {
 };
 
 /** Kept nowhere. What a consumer gets by saying nothing, and what tests use. */
-export const nowhere: Kept = {
+export const nowhere: OutboxStore = {
   moved: () => {},
   answered: () => {},
 };
@@ -93,13 +93,13 @@ export const nowhere: Kept = {
  * For tests, and for the shape of the thing: the durable implementation does
  * this against IndexedDB and differs in nothing else.
  */
-export const remembering = (restored: Restored = nothing) => {
+export const createInMemoryStore = (restored: Restored = nothing) => {
   const entries = new Map<Transaction, Entry>(
     restored.entries.map((entry) => [entry.request.transaction, entry]),
   );
   const recorded = new Set<Transaction>(restored.recorded);
 
-  const kept: Kept = {
+  const outboxStore: OutboxStore = {
     moved: ({ written = [], gone = [] }) => {
       for (const entry of written)
         entries.set(entry.request.transaction, entry);
@@ -111,7 +111,7 @@ export const remembering = (restored: Restored = nothing) => {
   };
 
   return {
-    kept,
+    outboxStore,
     /** What a fresh client would be handed, were it to start now. */
     restored: (): Restored => ({
       entries: [...entries.values()],
@@ -128,10 +128,10 @@ export const remembering = (restored: Restored = nothing) => {
  * deltas against bytes this one is about to call unreferenced.
  */
 export const referenced = (entries: Iterable<Entry>): Set<Digest> => {
-  const held = new Set<Digest>();
+  const referenced = new Set<Digest>();
   for (const entry of entries) {
-    if (entry.content !== undefined) held.add(entry.content);
-    if (entry.basis?.content !== undefined) held.add(entry.basis.content);
+    if (entry.content !== undefined) referenced.add(entry.content);
+    if (entry.basis?.content !== undefined) referenced.add(entry.basis.content);
   }
-  return held;
+  return referenced;
 };

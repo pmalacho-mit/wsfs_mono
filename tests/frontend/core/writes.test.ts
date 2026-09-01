@@ -24,7 +24,7 @@ import type { Response, Submitted, Write } from "../../../wsfs_core_suede/fronte
  */
 const server = () => {
   const current = new Map<string, string>();
-  const held = new Map<string, string>();
+  const bytesByDigest = new Map<string, string>();
   const confirmed = new Map<string, string>();
   const applied: string[] = [];
 
@@ -38,7 +38,7 @@ const server = () => {
     applied,
     most: () => most,
     seen,
-    text: (entry: string) => held.get(entry),
+    text: (entry: string) => bytesByDigest.get(entry),
     /** Nothing is answered until this is released -- so a chain can be seen whole. */
     hold: () => {
       gate = new Promise<void>((released) => (open = released));
@@ -52,7 +52,7 @@ const server = () => {
       const token = mint();
       current.set(entry, token);
       confirmed.set(entry, token);
-      held.set(entry, text);
+      bytesByDigest.set(entry, text);
       return token;
     },
     /**
@@ -62,13 +62,13 @@ const server = () => {
      */
     creates: (entry: string, transaction: string) => {
       current.set(entry, transaction);
-      held.set(entry, "");
+      bytesByDigest.set(entry, "");
     },
     /** Somebody else writes. The client hears nothing until the stream runs. */
     elsewhere: (entry: string, text: string) => {
       const token = mint();
       current.set(entry, token);
-      held.set(entry, text);
+      bytesByDigest.set(entry, text);
       return token;
     },
     /** Deliver what has landed, which is what moves the confirmed token. */
@@ -90,7 +90,7 @@ const server = () => {
             version: current.get(write.id)!,
           };
         current.set(write.id, write.transaction);
-        held.set(
+        bytesByDigest.set(
           write.id,
           write.content.type === "text" ? write.content.content : "",
         );
@@ -108,9 +108,9 @@ const server = () => {
  * and `crypto.subtle` settles on a task rather than a microtask, so this has
  * to yield the loop properly rather than spin on resolved promises.
  */
-const until = async (settled: () => boolean) => {
+const until = async (reached: () => boolean) => {
   for (let turn = 0; turn < 200; turn += 1) {
-    if (settled()) return;
+    if (reached()) return;
     await new Promise((carry) => setTimeout(carry, 0));
   }
   throw new Error("the queue never reached the expected state");
@@ -141,7 +141,7 @@ const wired = (world: ReturnType<typeof server>) => {
       const transaction = mint();
       return {
         transaction,
-        settled: flight.write(
+        response: flight.write(
           entry,
           {
             op: "write",
@@ -159,7 +159,7 @@ const wired = (world: ReturnType<typeof server>) => {
       const transaction = mint();
       return {
         transaction,
-        settled: flight.write(
+        response: flight.write(
           entry,
           {
             op: "write",
@@ -189,7 +189,7 @@ describe("writes in flight", () => {
      * used to read the same confirmed token and all but the first was refused.
      */
     const sent = ["one", "two", "three"].map((text) => client.write(entry, text));
-    const answers = await Promise.all(sent.map(({ settled }) => settled));
+    const answers = await Promise.all(sent.map(({ response }) => response));
 
     expect(answers.map((answer) => answer.rejected)).toEqual([false, false, false]);
     expect(world.applied).toEqual(sent.map(({ transaction }) => transaction));
@@ -203,7 +203,7 @@ describe("writes in flight", () => {
     world.open(entry);
 
     await Promise.all(
-      ["a", "b", "c", "d"].map((text) => client.write(entry, text).settled),
+      ["a", "b", "c", "d"].map((text) => client.write(entry, text).response),
     );
 
     expect(world.most()).toBe(1);
@@ -221,7 +221,7 @@ describe("writes in flight", () => {
     const sent = [client.write(first, "a"), client.write(second, "b")];
     await until(() => world.most() === 2);
     world.release();
-    await Promise.all(sent.map(({ settled }) => settled));
+    await Promise.all(sent.map(({ response }) => response));
 
     expect(world.most()).toBe(2);
   });
@@ -233,7 +233,7 @@ describe("writes in flight", () => {
     world.open(entry, "");
 
     const first = client.write(entry, "mine");
-    expect((await first.settled).rejected).toBe(false);
+    expect((await first.response).rejected).toBe(false);
 
     /**
      * The protection the swap exists to give. A token this client cannot name
@@ -243,7 +243,7 @@ describe("writes in flight", () => {
     world.elsewhere(entry, "theirs");
     const second = client.write(entry, "mine again");
 
-    expect(await second.settled).toMatchObject({
+    expect(await second.response).toMatchObject({
       rejected: true,
       reason: "content was already updated",
     });
@@ -259,7 +259,7 @@ describe("writes in flight", () => {
 
     const before = client.announcements();
     const refused = client.write(entry, "mine");
-    await refused.settled;
+    await refused.response;
 
     expect(client.queue.chain(entry)).toHaveLength(0);
     /** Once for queueing it, once for taking it back. */
@@ -274,7 +274,7 @@ describe("writes in flight", () => {
     const theirs = world.elsewhere(entry, "theirs");
 
     const doomed = client.write(entry, "mine");
-    await doomed.settled;
+    await doomed.response;
 
     /**
      * The client hears about their write, and the next one it sends presents
@@ -285,7 +285,7 @@ describe("writes in flight", () => {
     expect(world.token(entry)).toBe(theirs);
     const after = client.write(entry, "mine, rebased");
 
-    expect((await after.settled).rejected).toBe(false);
+    expect((await after.response).rejected).toBe(false);
     expect(world.text(entry)).toBe("mine, rebased");
   });
 
@@ -303,7 +303,7 @@ describe("writes in flight", () => {
     world.creates(entry, creating);
     const written = client.writeAgainst(entry, creating, "after the create");
 
-    expect((await written.settled).rejected).toBe(false);
+    expect((await written.response).rejected).toBe(false);
     expect(world.text(entry)).toBe("after the create");
   });
 
@@ -338,7 +338,7 @@ describe("writes in flight", () => {
     for (const size of sizes.slice(1)) expect(size).toBeLessThan(200);
 
     world.release();
-    await Promise.all(sent.map(({ settled }) => settled));
+    await Promise.all(sent.map(({ response }) => response));
     expect(world.text(entry)).toBe(`${document}abc`);
   });
 
@@ -357,7 +357,7 @@ describe("writes in flight", () => {
     } as ReturnType<typeof server>);
 
     const first = client.write(entry, "one");
-    await expect(first.settled).rejects.toThrow("offline");
+    await expect(first.response).rejects.toThrow("offline");
     const second = client.write(entry, "two");
     await until(() => client.queue.chain(entry).length === 2);
 
@@ -366,7 +366,7 @@ describe("writes in flight", () => {
 
     broken = false;
     client.flight.resume();
-    expect((await second.settled).rejected).toBe(false);
+    expect((await second.response).rejected).toBe(false);
     expect(world.text(entry)).toBe("two");
   });
 });

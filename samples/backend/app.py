@@ -30,6 +30,7 @@ from ...wsfs_core_suede.backend.collaboration import (
     ICollaboration,
     InProcessCollaboration,
     Liveblocks,
+    api_base,
 )
 from ...wsfs_core_suede.backend.main import Backend, create_router
 from ...wsfs_core_suede.backend.models import build_models
@@ -240,7 +241,7 @@ def create_sample_app(
 
         async with httpx.AsyncClient(timeout=20) as client:
             answer = await client.post(
-                "https://api.liveblocks.io/v2/authorize-user",
+                f"{api_base()}/v2/authorize-user",
                 json={
                     "userId": str(account.id),
                     "userInfo": {"email": x_user_email},

@@ -34,21 +34,21 @@ const stamped = (
 
 const flatten = (layout: Layout) => {
   const entries: Metadata[] = [];
-  const held = new Map<string, string>();
+  const textByEntry = new Map<string, string>();
   for (const [name, files] of Object.entries(layout)) {
     const holder = stamped(name, "folder", null, null);
     entries.push(holder);
     for (const [file, content] of Object.entries(files)) {
       const entry = stamped(file, "file", holder.id, content);
       entries.push(entry);
-      held.set(entry.id, content);
+      textByEntry.set(entry.id, content);
     }
   }
-  return { entries, held };
+  return { entries, textByEntry };
 };
 
 export const offline = (layout: Layout): Transport => {
-  const { entries, held } = flatten(layout);
+  const { entries, textByEntry } = flatten(layout);
   const token = uuid();
 
   return {
@@ -56,13 +56,13 @@ export const offline = (layout: Layout): Transport => {
     submit: async () => ({ rejected: true, reason: "nothing is listening" }),
     content: async (_workspace, entry) => ({
       kind: "text",
-      text: held.get(entry) ?? "",
+      text: textByEntry.get(entry) ?? "",
     }),
-    store: async () => {},
+    uploadBytes: async () => {},
     /** Nothing was ever written here, so nothing has ever been said. */
     history: async () => ({ versions: [], more: false }),
     /** And no room was ever filled: this is a picture, not a session. */
-    settleRoom: async () => null,
+    bringRoomUpToFile: async () => null,
     warmRoom: async () => {},
     roomStored: async () => {},
     handOver: async () => {},

@@ -43,7 +43,7 @@
       await new Promise((carry) => setTimeout(carry, 400));
       const made = workspace.create(this.path, "one\n");
       this.entry = made.entry;
-      await made.settled;
+      await made.response;
       return workspace;
     }
 
@@ -114,7 +114,7 @@
     let at = workspace.entries().get(pocket.entry)!.content_version!;
     for (const said of ["two\n", "three\n"]) {
       const written = workspace.write(pocket.path, said);
-      await written.settled;
+      await written.response;
       at = written.transaction;
     }
 
@@ -158,7 +158,7 @@
      */
     pocket.wire!.reachable(false);
     const stranded = workspace.write(pocket.path, "typed with no server\n");
-    void stranded.settled.catch(() => undefined);
+    void stranded.response.catch(() => undefined);
     await delay({ milliseconds: 300 });
 
     /**
@@ -212,8 +212,8 @@
     onAbort(() => ((pocket.open = false), pocket.dispose()));
     const workspace = await pocket.start();
 
-    await workspace.write(pocket.path, "second\n").settled;
-    await workspace.write(pocket.path, "third\n").settled;
+    await workspace.write(pocket.path, "second\n").response;
+    await workspace.write(pocket.path, "third\n").response;
 
     pocket.open = true;
     await delay({ frames: 4 });
@@ -229,8 +229,8 @@
     /** The restore is an ordinary write, so this waits for it to land. */
     let said = "";
     await until("the file to say what it said before", () => said === "one\n", 15_000, async () => {
-      const held = await workspace.read(pocket.path);
-      said = held?.kind === "text" ? held.text : "";
+      const withheld = await workspace.read(pocket.path);
+      said = withheld?.kind === "text" ? withheld.text : "";
     });
     pocket.said = said;
     expect(said).toBe("one\n");

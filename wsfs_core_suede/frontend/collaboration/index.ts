@@ -30,9 +30,9 @@ export const warmRoom = async (
  * is typed, and outlives the tab that typed it.
  */
 export const persisting: Persist = (entry, doc) => {
-  const kept = new IndexeddbPersistence(`wsfs:${entry}`, doc);
+  const persistence = new IndexeddbPersistence(`wsfs:${entry}`, doc);
   return {
-    loaded: kept.whenSynced.then(() => undefined),
+    loaded: persistence.whenSynced.then(() => undefined),
     stop: async () => {
       /**
        * The flush is best effort, and it has to be.
@@ -45,12 +45,12 @@ export const persisting: Persist = (entry, doc) => {
        * losing everybody's because of it is the thing worth preventing.
        */
       try {
-        await storeState(kept, true);
+        await storeState(persistence, true);
       } catch {
         /** Nothing to do about it, and nothing worth stopping for. */
       }
       try {
-        await kept.destroy();
+        await persistence.destroy();
       } catch {
         /** Already gone, which is where this was trying to get to. */
       }
@@ -67,7 +67,7 @@ export const persisting: Persist = (entry, doc) => {
  * on calling routes that had moved, and then calling them unauthenticated.
  */
 export const hostedIn = (workspace: Pick<Workspace, "room">): Host => ({
-  settle: (entry) => workspace.room.settle(entry),
+  bringRoomUpToFile: (entry) => workspace.room.bringRoomUpToFile(entry),
   stored: (entry, version) => workspace.room.stored(entry, version),
   handOver: (entry, update) => workspace.room.handOver(entry, update),
 });

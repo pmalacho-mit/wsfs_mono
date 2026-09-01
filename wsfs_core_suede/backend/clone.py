@@ -144,10 +144,10 @@ def reachable(nodes: list[Node]) -> list[Node]:
     """
     live = {node.id: node for node in nodes if not node.deleted}
     ordered: list[Node] = []
-    settled: dict[UUID, bool] = {}
+    reaches_root: dict[UUID, bool] = {}
 
     for node in live.values():
-        if node.id in settled:
+        if node.id in reaches_root:
             continue
         # Climb to the first rung with a known answer, remembering the way up.
         climbed: list[Node] = []
@@ -161,15 +161,15 @@ def reachable(nodes: list[Node]) -> list[Node]:
             if at.parent is None:
                 keep = True
                 break
-            if at.parent in settled:
-                keep = settled[at.parent]
+            if at.parent in reaches_root:
+                keep = reaches_root[at.parent]
                 break
             above = live.get(at.parent)
             if above is None:  # deleted, or never there at all
                 break
             at = above
         for each in reversed(climbed):  # the root end first
-            settled[each.id] = keep
+            reaches_root[each.id] = keep
             if keep:
                 ordered.append(each)
     return ordered
@@ -281,5 +281,5 @@ async def copied_into(
             )
         )
 
-    events.extend(await service.settle(submission))
+    events.extend(await service.resolve_name_collisions(submission))
     return cloned, events

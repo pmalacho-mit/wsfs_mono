@@ -154,3 +154,17 @@ python3 tools/audit-imports.py
 `backend/llm.py` is the only file that may import a model library, and the
 audit names it. Nothing here may import pyodide, monaco, `wsfs_python_suede` or
 `wsfs_pytutor_suede`.
+
+---
+
+## Running the backend suite and the browser suite together
+
+Don't. `./tests/run.sh`'s compose file creates a second docker network, and the
+browser driver picks its network by looking for exactly one -- so a concurrent
+run dies with `Multiple networks found, and no filter was provided to select
+one`, which names neither the suite nor the network that confused it.
+
+For the same reason, don't point `pytest` at a database a browser run is using:
+the suite truncates every table before each test, and the long-running host's
+prepared-statement cache is invalidated underneath it. That surfaces much later
+as `InvalidCachedStatementError` in an unrelated request.

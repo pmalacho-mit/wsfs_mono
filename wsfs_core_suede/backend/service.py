@@ -730,7 +730,7 @@ async def _anchor_text(
         await submission.text.remember(submission.session, written, body.content)
 
 
-async def settle(submission: Submission) -> list[stream.Emitted]:
+async def resolve_name_collisions(submission: Submission) -> list[stream.Emitted]:
     """Rename anything created here that is still sharing a sibling's name.
 
     Runs once, at the end of the unit of work, after every queued transaction
@@ -741,11 +741,11 @@ async def settle(submission: Submission) -> list[stream.Emitted]:
     """
     return await _announcing(
         submission,
-        *[await _settled(submission, entry) for entry in submission.deferrals],
+        *[await _resolve_name_collision(submission, entry) for entry in submission.deferrals],
     )
 
 
-async def _settled(submission: Submission, entry_id: UUID) -> Applied | None:
+async def _resolve_name_collision(submission: Submission, entry_id: UUID) -> Applied | None:
     node = await submission.node(entry_id)
     if node is None or node.deleted:
         return None  # a tombstone holds no name to collide with
@@ -1001,11 +1001,11 @@ async def declined(
     )
 
 
-def _asks_to_be_kept(request: Submitted) -> bool:
+def _asks_to_be_a_draft(request: Submitted) -> bool:
     return isinstance(request, Write) and request.draft
 
 
-async def kept(submission: Submission, request: Write) -> Outcome:
+async def record_draft(submission: Submission, request: Write) -> Outcome:
     """Recorded beside the refusals, and not applied to anything.
 
     No judgement runs: a draft is not competing for the file, so there is no
@@ -1020,8 +1020,8 @@ async def kept(submission: Submission, request: Write) -> Outcome:
 async def adjudicate(submission: Submission, request: Submitted) -> Outcome:
     if isinstance(request, (Snapshot, Execute)):
         return await _recorded(submission, request)
-    if _asks_to_be_kept(request):
-        return await kept(submission, cast(Write, request))
+    if _asks_to_be_a_draft(request):
+        return await record_draft(submission, cast(Write, request))
     applied = await _already_applied(submission, request)
     if applied is not None:
         if isinstance(applied.response, Rejected):

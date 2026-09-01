@@ -90,6 +90,30 @@ and neither is privileged:
 The Liveblocks half skips itself when there is no key, which is what lets the
 rest of the suite run with neither a key nor a network.
 
+**Run the Liveblocks half at least once before trusting a change to it.** It
+needs no hosted account: Liveblocks open-sourced the sync engine, so
+`npx liveblocks dev --port 1153` mints its own key and answers the same REST
+API.
+
+```bash
+npx liveblocks dev --port 1153        # needs Bun on PATH
+LIVEBLOCKS_SECRET_KEY=sk_localdev LIVEBLOCKS_BASE_URL=http://localhost:1153 \
+  pytest tests/collaboration.py       # 12 passed: both implementations
+```
+
+`LIVEBLOCKS_BASE_URL` is read by `api_base()` and defaults to the hosted
+service, so nothing changes for a real deployment.
+
+**The first run of that half failed, and the test was the thing that was
+wrong.** Two cases asserted `document(room) == b""` for a created-but-empty
+room. `InProcessCollaboration` returns exactly that; a real engine returns the
+two-byte encoding of a document nobody has contributed to. Both decode to the
+same empty document — `standing_of` and `carried` open the update either way —
+so the assertion failed a service that conformed perfectly. They now ask
+`text_of(...) == ""`. A conformance suite says what an implementation must
+MEAN; the moment it pins an encoding, it stops describing the boundary and
+starts describing whichever implementation was written first.
+
 **The behaviour to keep an eye on** is the one the protocol's docstring states
 twice: `document()` must answer **empty bytes** for a room nobody has written
 to, rather than raising. Any implementation that raises there passes casual
@@ -167,3 +191,17 @@ core's suite is core knowing that an assistant exists.
 The torture suite (N1–N5) is the strongest evidence a refactor of this size did
 not quietly change behaviour. **Pin the seeds.** If a seed that passed before a
 change fails after it, stop and find out why before going on.
+
+---
+
+## Running the backend suite and the browser suite together
+
+Don't. `./tests/run.sh`'s compose file creates a second docker network, and the
+browser driver picks its network by looking for exactly one -- so a concurrent
+run dies with `Multiple networks found, and no filter was provided to select
+one`, which names neither the suite nor the network that confused it.
+
+For the same reason, don't point `pytest` at a database a browser run is using:
+the suite truncates every table before each test, and the long-running host's
+prepared-statement cache is invalidated underneath it. That surfaces much later
+as `InvalidCachedStatementError` in an unrelated request.

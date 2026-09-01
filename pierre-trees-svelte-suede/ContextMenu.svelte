@@ -7,13 +7,35 @@
   import type { Model } from "./model.svelte";
   import { entries } from "./entries";
 
-  export type Action = {
+export type Action = Doing | Saying;
+
+  type Doing = {
     label: string;
     run: () => void;
     danger?: boolean;
     /** Draws a divider above this action. */
     divided?: boolean;
+    note?: never;
   };
+
+  /**
+   * A row that explains rather than does.
+   *
+   * Drawn as text rather than as a button, and skipped by keyboard
+   * navigation, because a menu that has withheld most of what it usually
+   * offers -- a read-only tree, say -- reads as a bug unless it answers for
+   * itself.
+   */
+  type Saying = {
+    label: string;
+    note: true;
+    divided?: boolean;
+    run?: never;
+    danger?: never;
+  };
+
+  export const isNote = (action: Action): action is Saying =>
+    action.note === true;
 
   /** The surface's own holes, same shape as the tree's. */
   export type Variables = Partial<{
@@ -131,14 +153,18 @@
 >
   {#each actions as action (action.label)}
     {#if action.divided}<hr />{/if}
-    <button
-      type="button"
-      role="menuitem"
-      class:danger={action.danger}
-      onclick={action.run}
-    >
-      {action.label}
-    </button>
+    {#if isNote(action)}
+      <p>{action.label}</p>
+    {:else}
+      <button
+        type="button"
+        role="menuitem"
+        class:danger={action.danger}
+        onclick={action.run}
+      >
+        {action.label}
+      </button>
+    {/if}
   {/each}
 </div>
 
@@ -210,6 +236,18 @@
       opacity: 0;
       transform: scale(0.95);
     }
+  }
+
+  /* A note is the same row without the affordance: no hover, no focus ring,
+     and dimmed, because it is not offering to do anything. */
+  p {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0.375rem 0.75rem;
+    font: inherit;
+    line-height: 1.4;
+    opacity: 0.65;
   }
 
   button {

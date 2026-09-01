@@ -10,7 +10,7 @@ import * as changes from "./changes";
 import * as confirmed from "./confirmed";
 import { cache, type Content, type Payload } from "./content";
 import {
-  settledHere,
+  noStreamEventFollows,
   UNSOUND,
   type Body,
   type Id,
@@ -23,7 +23,7 @@ import {
 } from "./contract";
 import * as effective from "./effective";
 import { merged, type Told } from "./history";
-import { nothing, nowhere, type Kept, type Restored } from "./kept";
+import { nothing, nowhere, type OutboxStore, type Restored } from "./outbox-store";
 import { mint } from "./identity";
 import { offset } from "./minted";
 import * as loop from "./loop";
@@ -54,11 +54,11 @@ export type Options = {
    */
   shared?: (entry: Id) => boolean;
   /**
-   * Where the queue is written down, and what it held when this client last
+   * Where the queue is written down, and what was in it when this client last
    * ran. Say nothing and the outbox lives and dies with the page, which loses
    * work and is the default only because a consumer must choose its storage.
    */
-  kept?: Kept;
+  outboxStore?: OutboxStore;
   restored?: Restored;
   /**
    * Queued work that can never be sent, because the bytes it named are gone.
@@ -85,13 +85,13 @@ export type Changed = changes.Watching;
  * is even sent -- so a caller that only learned its transaction id when the
  * promise resolved would learn it after being told about its own work.
  *
- * `settled` does not reject on a refusal: a refused transaction is taken back
+ * `response` does not reject on a refusal: a refused transaction is taken back
  * by the same recomputation that showed it, and the reason is in the response
  * for a caller that wants to say something about it.
  */
 export type Submitting = {
   transaction: Transaction;
-  settled: Promise<Response>;
+  response: Promise<Response>;
 };
 
 /** A create also names the entry it is bringing into existence. */
@@ -114,7 +114,7 @@ export type Workspace = {
   read: (path: paths.Path) => Promise<Payload | undefined>;
   holding: (path: paths.Path) => Payload | undefined;
   /**
-   * What one file held at one version.
+   * What one file said at one version.
    *
    * `read` answers for a file as it stands, which is what almost everything
    * wants. This answers for a version by name, which is what a consumer
@@ -156,7 +156,7 @@ export type Workspace = {
    * object already has both.
    */
   room: {
-    settle: (entry: Id) => Promise<Version | null>;
+    bringRoomUpToFile: (entry: Id) => Promise<Version | null>;
     warm: (entry: Id) => Promise<void>;
     stored: (entry: Id, version: Version) => Promise<void>;
     handOver: (entry: Id, update: Uint8Array) => Promise<void>;
@@ -198,7 +198,7 @@ export type Workspace = {
    * deleted underneath somebody is exactly when their unstored work needs
    * keeping, and by then it has no path to name.
    */
-  keep: (
+  recordDraft: (
     entry: Id,
     content: string | Uint8Array,
     mime?: string,
@@ -282,7 +282,7 @@ export type Workspace = {
    * elsewhere asks this first, and an empty answer is what makes the snapshot
    * portable.
    */
-  unsettled: (transactions: Iterable<Transaction>) => Transaction[];
+  unanswered: (transactions: Iterable<Transaction>) => Transaction[];
 
   stop: () => void;
   nudge: () => void;
@@ -313,8 +313,8 @@ const plainly = (outputs: unknown[]): unknown[] => {
     return JSON.parse(JSON.stringify(outputs)) as unknown[];
   } catch {
     /** Circular, or holding a BigInt. Better to keep the run than the shape. */
-    return outputs.map((one) => ({
-      unstorable: Object.prototype.toString.call(one),
+    return outputs.map((output) => ({
+      unstorable: Object.prototype.toString.call(output),
     }));
   }
 };
@@ -337,9 +337,9 @@ export type Recovery = {
 export const connect = (options: Options): Workspace => {
   const { workspace, transport } = options;
   const bytes = options.bytes ?? inMemory();
-  const kept = options.kept ?? nowhere;
+  const outboxStore = options.outboxStore ?? nowhere;
   const restored = options.restored ?? nothing;
-  const queue = outbox.queue(restored.entries, kept);
+  const queue = outbox.queue(restored.entries, outboxStore);
   const listeners = new Set<Changed>();
 
   let map = confirmed.empty();
@@ -365,7 +365,7 @@ export const connect = (options: Options): Workspace => {
    * next write to that file: the map only ever holds what an entry is at NOW,
    * so a transaction pruned while it was current became, the moment something
    * superseded it, a transaction neither the map nor this set could speak for
-   * -- and `unsettled` called work that was safely on the server unsettled,
+   * -- and `unanswered` called work that was safely on the server unanswered,
    * for ever.
    *
    * Which is the opposite of this set's whole purpose. It is three ids per
@@ -375,7 +375,7 @@ export const connect = (options: Options): Workspace => {
 
   const answered = (transaction: Transaction) => {
     recorded.add(transaction);
-    kept.answered([transaction]);
+    outboxStore.answered([transaction]);
   };
 
   const content: Content = cache((entry, version) =>
@@ -454,7 +454,7 @@ export const connect = (options: Options): Workspace => {
     recomputed();
     const response = await transport.submit(workspace, request);
     answered(request.transaction);
-    if (settledHere(response)) {
+    if (noStreamEventFollows(response)) {
       if (response.rejected && response.reason === UNSOUND) sync.nudge();
       bytes.forget(queue.evict([request.transaction]));
       recomputed();
@@ -472,7 +472,7 @@ export const connect = (options: Options): Workspace => {
   ): Promise<Body> => {
     if (isText(payload)) return { type: "text", content: payload };
     const hash = await digestOf(payload);
-    await transport.store(workspace, hash, payload, mime);
+    await transport.uploadBytes(workspace, hash, payload, mime);
     return { type: "binary", hash, size: payload.byteLength, mime };
   };
 
@@ -517,7 +517,7 @@ export const connect = (options: Options): Workspace => {
      * time this leaves there may be a write of this client's own in front of
      * it that the confirmed view has not heard about yet.
      */
-    const settled = (async () => {
+    const response = (async () => {
       const answer = await flight.write(
         entry.id,
         {
@@ -534,7 +534,7 @@ export const connect = (options: Options): Workspace => {
       answered(transaction);
       return answer;
     })();
-    return { transaction, settled };
+    return { transaction, response };
   };
 
   const sync = loop.run(
@@ -546,7 +546,7 @@ export const connect = (options: Options): Workspace => {
          * comes round -- and leaving it in place used to stop everything
          * behind it from being sent either.
          */
-        const { presented, unreadable } = await outbox.presenting(
+        const { presented, unreadable } = await outbox.prepareSubmissions(
           queue.entries(),
           queue,
           bytes,
@@ -562,7 +562,7 @@ export const connect = (options: Options): Workspace => {
          * Replay is an answer like any other, and it used to be the one that
          * was not written down. A draft sent during Initialize left the queue
          * and was recorded nowhere, so a client that had reloaded called its
-         * own landed work unsettled for ever -- which is exactly the question
+         * own landed work unanswered for ever -- which is exactly the question
          * a consumer asks before handing a snapshot to anybody else.
          */
         const answers = [
@@ -639,7 +639,7 @@ export const connect = (options: Options): Workspace => {
         return {
           versions: first
             ? merged(queue.entries(), entry, said.versions)
-            : said.versions.map((one) => one as Told),
+            : said.versions.map((version) => version as Told),
           more: said.more,
           told: true,
         };
@@ -665,7 +665,7 @@ export const connect = (options: Options): Workspace => {
 
 
     room: {
-      settle: (entry) => transport.settleRoom(workspace, entry),
+      bringRoomUpToFile: (entry) => transport.bringRoomUpToFile(workspace, entry),
       warm: (entry) => transport.warmRoom(workspace, entry),
       stored: (entry, version) => transport.roomStored(workspace, entry, version),
       handOver: (entry, update) => transport.handOver(workspace, entry, update),
@@ -675,15 +675,15 @@ export const connect = (options: Options): Workspace => {
       const transaction = mint();
       const seen = entries
         .map((id) => map.get(id) ?? shown.view.get(id))
-        .filter((held): held is Metadata => held !== undefined)
-        .map((held) => ({
-          id: held.id,
-          name_version: held.name_version,
-          parent_version: held.parent_version,
-          deleted_version: held.deleted_version,
-          content_version: held.content_version ?? null,
+        .filter((entry): entry is Metadata => entry !== undefined)
+        .map((entry) => ({
+          id: entry.id,
+          name_version: entry.name_version,
+          parent_version: entry.parent_version,
+          deleted_version: entry.deleted_version,
+          content_version: entry.content_version ?? null,
         }));
-      const settled = submit({
+      const response = submit({
         op: "snapshot",
         transaction,
         /**
@@ -695,12 +695,12 @@ export const connect = (options: Options): Workspace => {
         id: seen[0]?.id ?? transaction,
         entries: seen,
       } as Submitted);
-      return { transaction, settled };
+      return { transaction, response };
     },
 
     executed: (entry, snapshot, outputs, ok) => {
       const transaction = mint();
-      const settled = submit({
+      const response = submit({
         op: "execute",
         transaction,
         id: entry,
@@ -708,14 +708,14 @@ export const connect = (options: Options): Workspace => {
         outputs: plainly(outputs),
         ok,
       } as Submitted);
-      return { transaction, settled };
+      return { transaction, response };
     },
 
     restore: async (entry, version) => {
-      const held = await transport.content(workspace, entry, version);
-      if (held.kind !== "text")
+      const content = await transport.content(workspace, entry, version);
+      if (content.kind !== "text")
         throw new Error(
-          `Version ${version} of this file is ${held.mime}, and putting bytes ` +
+          `Version ${version} of this file is ${content.mime}, and putting bytes ` +
             "back is a copy rather than a write. Not yet supported.",
         );
       /**
@@ -728,7 +728,7 @@ export const connect = (options: Options): Workspace => {
        * write is -- and the room hears about it the same way, by the server
        * carrying it in.
        */
-      return written(heldEntry(entry), held.text, TEXT);
+      return written(entryNamed(entry), content.text, TEXT);
     },
 
     write: (path, payload, mime = TEXT) => {
@@ -739,11 +739,11 @@ export const connect = (options: Options): Workspace => {
     },
 
     rescue: (entry, text) => {
-      const held = shown.view.get(entry);
-      const seen = held?.content_version;
+      const known = shown.view.get(entry);
+      const seen = known?.content_version;
       // Nothing to follow means nothing the server would accept, and there is
       // no time here to go and find out what it should have been.
-      if (held === undefined || seen == null) return;
+      if (known === undefined || seen == null) return;
       /**
        * THE NOTE FIRST, THE REQUEST SECOND, and the order is the point.
        *
@@ -774,7 +774,7 @@ export const connect = (options: Options): Workspace => {
     recovered: async () => {
       const answer: Recovery = { replayed: [], landed: [], contested: [] };
       for (const note of stashed(workspace)) {
-        const held = shown.view.get(note.entry);
+        const known = shown.view.get(note.entry);
 
         /**
          * Gone, or too old to act on without being asked.
@@ -783,7 +783,7 @@ export const connect = (options: Options): Workspace => {
          * how long a note that nobody ever came back for should be allowed to
          * sit in a store this small before it is somebody else's problem.
          */
-        if (held === undefined || Date.now() - (note.at ?? 0) > STALE_MS) {
+        if (known === undefined || Date.now() - (note.at ?? 0) > STALE_MS) {
           forget(workspace, note.entry);
           continue;
         }
@@ -793,8 +793,8 @@ export const connect = (options: Options): Workspace => {
          * the file is this person's own last few seconds of typing, and
          * nothing else -- which is exactly what makes replaying it safe.
          */
-        if (held.content_version === note.basis) {
-          void written(held, note.text, TEXT).settled.catch(() => undefined);
+        if (known.content_version === note.basis) {
+          void written(known, note.text, TEXT).response.catch(() => undefined);
           forget(workspace, note.entry);
           answer.replayed.push(note.entry);
           continue;
@@ -808,7 +808,7 @@ export const connect = (options: Options): Workspace => {
          * the version moving is what both cases look like.
          */
         try {
-          const now = await content.read(held);
+          const now = await content.read(known);
           if (now?.kind === "text" && now.text === note.text) {
             forget(workspace, note.entry);
             answer.landed.push(note.entry);
@@ -830,17 +830,17 @@ export const connect = (options: Options): Workspace => {
 
     cleared: (transactions) => transport.cleared(workspace, transactions),
 
-    keep: (entry, payload, mime = TEXT) => written(heldEntry(entry), payload, mime, true),
+    recordDraft: (entry, payload, mime = TEXT) => written(entryNamed(entry), payload, mime, true),
 
     shares: (entry, payload, mime = TEXT) =>
-      written(heldEntry(entry), payload, mime),
+      written(entryNamed(entry), payload, mime),
 
     create: (path, payload, mime = TEXT) => created(path, payload, mime),
 
     folder: (path) => {
       const entry = mint();
       const transaction = mint();
-      const settled = submit({
+      const response = submit({
         op: "create",
         transaction,
         id: entry,
@@ -849,13 +849,13 @@ export const connect = (options: Options): Workspace => {
         parent: parentOf(path),
         content: null,
       });
-      return { entry, transaction, settled };
+      return { entry, transaction, response };
     },
 
     move: (from, to) => {
       const entry = entryAt(from);
       const transaction = mint();
-      const settled = submit({
+      const response = submit({
         op: "move",
         transaction,
         id: entry.id,
@@ -864,13 +864,13 @@ export const connect = (options: Options): Workspace => {
         parent: parentOf(to),
         parent_version: entry.parent_version,
       });
-      return { transaction, settled };
+      return { transaction, response };
     },
 
     remove: (path) => {
       const entry = entryAt(path);
       const transaction = mint();
-      const settled = submit({
+      const response = submit({
         op: "delete",
         transaction,
         id: entry.id,
@@ -881,7 +881,7 @@ export const connect = (options: Options): Workspace => {
           content_version: entry.content_version ?? null,
         },
       });
-      return { transaction, settled };
+      return { transaction, response };
     },
 
     /**
@@ -899,11 +899,11 @@ export const connect = (options: Options): Workspace => {
      * cannot speak to: drafts, refusals, and writes a later write has moved
      * past.
      */
-    unsettled: (transactions) => {
-      const settled = currentVersions();
-      for (const transaction of recorded) settled.add(transaction);
+    unanswered: (transactions) => {
+      const answeredFor = currentVersions();
+      for (const transaction of recorded) answeredFor.add(transaction);
       return [...transactions].filter(
-        (transaction) => !settled.has(transaction),
+        (transaction) => !answeredFor.has(transaction),
       );
     },
 
@@ -912,20 +912,20 @@ export const connect = (options: Options): Workspace => {
   };
 
   function currentVersions(): Set<Transaction> {
-    const held = new Set<Transaction>();
+    const versions = new Set<Transaction>();
     for (const entry of map.values()) {
-      held.add(entry.name_version);
-      held.add(entry.parent_version);
-      held.add(entry.deleted_version);
-      if (entry.content_version != null) held.add(entry.content_version);
+      versions.add(entry.name_version);
+      versions.add(entry.parent_version);
+      versions.add(entry.deleted_version);
+      if (entry.content_version != null) versions.add(entry.content_version);
     }
-    return held;
+    return versions;
   }
 
-  function heldEntry(entry: Id): Metadata {
-    const held = shown.view.get(entry);
-    if (held === undefined) throw new Error(`No such entry: ${entry}`);
-    return held;
+  function entryNamed(entry: Id): Metadata {
+    const known = shown.view.get(entry);
+    if (known === undefined) throw new Error(`No such entry: ${entry}`);
+    return known;
   }
 
   /**
@@ -955,7 +955,7 @@ export const connect = (options: Options): Workspace => {
     const entry = mint();
     const transaction = mint();
     const parent = parentOf(path);
-    const settled = (async () =>
+    const response = (async () =>
       submit(
         {
           op: "create",
@@ -969,6 +969,6 @@ export const connect = (options: Options): Workspace => {
         payload,
         mime,
       ))();
-    return { entry, transaction, settled };
+    return { entry, transaction, response };
   }
 };

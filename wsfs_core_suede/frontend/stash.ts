@@ -61,9 +61,9 @@ const store = (): Storage | undefined => {
 };
 
 /** Writes the note. Synchronous, and quiet about every way it can fail. */
-export const stash = (workspace: Id, one: Stashed): void => {
+export const stash = (workspace: Id, note: Stashed): void => {
   try {
-    store()?.setItem(keyed(workspace, one.entry), JSON.stringify(one));
+    store()?.setItem(keyed(workspace, note.entry), JSON.stringify(note));
   } catch {
     /* Full, forbidden, or absent. Nothing here is worth a thrown page. */
   }
@@ -86,8 +86,8 @@ export const forget = (workspace: Id, entry: Id): void => {
  * open the workspace over it would turn a lost paragraph into a lost session.
  */
 export const stashed = (workspace: Id): Stashed[] => {
-  const held = store();
-  if (!held) return [];
+  const storage = store();
+  if (!storage) return [];
   const prefix = `${PREFIX}${workspace}:`;
   const found: Stashed[] = [];
   try {
@@ -101,21 +101,21 @@ export const stashed = (workspace: Id): Stashed[] => {
      * be tidying up after a bad one.
      */
     const keys: string[] = [];
-    for (let at = 0; at < held.length; at += 1) {
-      const key = held.key(at);
+    for (let at = 0; at < storage.length; at += 1) {
+      const key = storage.key(at);
       if (key !== null && key.startsWith(prefix)) keys.push(key);
     }
 
     for (const key of keys) {
-      const raw = held.getItem(key);
+      const raw = storage.getItem(key);
       if (raw === null) continue;
       try {
-        const one = JSON.parse(raw) as Stashed;
-        if (typeof one?.entry === "string" && typeof one?.text === "string")
-          found.push(one);
-        else held.removeItem(key);
+        const note = JSON.parse(raw) as Stashed;
+        if (typeof note?.entry === "string" && typeof note?.text === "string")
+          found.push(note);
+        else storage.removeItem(key);
       } catch {
-        held.removeItem(key);
+        storage.removeItem(key);
       }
     }
   } catch {

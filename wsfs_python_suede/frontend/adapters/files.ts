@@ -50,14 +50,14 @@ export const provider = (
   read: async (path) => {
     const override = fileOverride?.get(path);
     if (override !== undefined) return override;
-    const held = await workspace.read(path);
-    if (held === undefined) throw new Error(`No such file: ${path}`);
-    return textOf(held);
+    const content = await workspace.read(path);
+    if (content === undefined) throw new Error(`No such file: ${path}`);
+    return textOf(content);
   },
 
   write: async (path, text) => {
     if (await fileOverride?.put(path, text)) return;
-    void (await workspace.write(path, text).settled);
+    void (await workspace.write(path, text).response);
   },
 
   /**

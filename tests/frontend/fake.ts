@@ -93,9 +93,9 @@ export const server = (): Fake => {
   };
 
   const remember = (entry: Id, version: Version, text: string) => {
-    const kept = versions.get(entry) ?? new Map<Version, string>();
-    kept.set(version, text);
-    versions.set(entry, kept);
+    const byVersion = versions.get(entry) ?? new Map<Version, string>();
+    byVersion.set(version, text);
+    versions.set(entry, byVersion);
   };
 
   /**
@@ -268,7 +268,7 @@ export const server = (): Fake => {
       return { kind: "text", text: text ?? "" } as Payload;
     },
 
-    store: async (_workspace, digest, bytes, mime) => {
+    uploadBytes: async (_workspace, digest, bytes, mime) => {
       reach();
       blobs.set(digest, { bytes, mime });
     },

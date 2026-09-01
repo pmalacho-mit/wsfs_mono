@@ -34,7 +34,7 @@ wsfs_python_suede/
 
 Install every dependency with `--root-owned`. Suede's default names a
 dependency after whoever asked for it, which gives one folder two paths — and
-TypeScript reads two paths as two nominal types, so a `SharedTextFile` from
+TypeScript reads two paths as two nominal types, so an `OpenText` from
 `wsfs_svelte_suede` stops being assignable to the one this package's `Runner`
 declares.
 
@@ -109,21 +109,31 @@ and two `playwright install --with-deps` builds plus two `runc create`s in
 flight is the state a Docker daemon has died in twice. Warm serially; the image
 is what you are protecting, and it is cached.
 
-## 6. The Monaco surface
+## 6. The Monaco editor
 
-`MonacoSurface.svelte` is this package's answer to `wsfs_svelte_suede`'s
-`EditorSurface`, and the protocol is what lets everything above it stay
-ignorant of Monaco. Three rules apply to it as to any surface:
+`MonacoEditor.svelte` is what this package hands `editorFor`, and `MonacoModel`
+is its answer to `wsfs_svelte_suede`'s `Editor` contract. Three rules apply to
+it as to any editor of a wsfs file:
 
-- bind to the ROOM's `Y.Doc`, never one of its own — a room outlives its
-  providers, and a document the surface made is thrown away with the surface;
+- bind to the ROOM's document, never one of its own — a room outlives its
+  providers, and a document the editor made is thrown away with the editor;
 - report edits with `shared: false` before a document is bound;
 - never diff the file into the document.
 
-Bound only once the document has been RECEIVED, which the caller guarantees:
-`MonacoBinding` makes the model say whatever the `Y.Text` says the moment it is
-constructed, so binding an unsynchronised document does not show an empty file,
-it makes one — and the next store writes that over the real content.
+Two orderings are enforced rather than documented, and both are worth a test if
+you change this file:
+
+- **the model outlives the editor**, so a tab dragged to another dock group is
+  torn down and rebuilt without losing what was typed;
+- **`edits` throws before Monaco has handed over an editor.** The shell is told
+  about the model only once there is an edit stream to report, so reaching it
+  earlier is a caller getting the order wrong rather than a case to handle.
+
+And `bind` happens only once the document has arrived, which the shell
+guarantees by not offering one before then: `MonacoBinding` makes the model say
+whatever the `Y.Text` says the moment it is constructed, so binding an
+unsynchronised document does not show an empty file, it makes one — and the
+next store writes that over the real content.
 
 ## 7. The boundary
 
@@ -134,3 +144,17 @@ python3 tools/audit-imports.py
 This package may not import a model library, `wsfs_assistant_suede` or
 `wsfs_pytutor_suede`. It may — and does — import Monaco and pyodide, and it is
 the only one that may.
+
+---
+
+## Running the backend suite and the browser suite together
+
+Don't. `./tests/run.sh`'s compose file creates a second docker network, and the
+browser driver picks its network by looking for exactly one -- so a concurrent
+run dies with `Multiple networks found, and no filter was provided to select
+one`, which names neither the suite nor the network that confused it.
+
+For the same reason, don't point `pytest` at a database a browser run is using:
+the suite truncates every table before each test, and the long-running host's
+prepared-statement cache is invalidated underneath it. That surfaces much later
+as `InvalidCachedStatementError` in an unrelated request.

@@ -53,10 +53,19 @@ export { Nudge } from "./nudge";
 /** What a student did inside a post-episode window. */
 export { Activity } from "./activity";
 
-/** The application shell, and the pane that frames it. */
+/**
+ * The application: `wsfs_svelte_suede`'s shell with Python in it and a tutor
+ * beside it. This is the only package that may depend on all four, which is
+ * why the composition lives here rather than in any of them.
+ */
 export { default as Workspace, Model } from "./Workspace.svelte";
 export { default as WorkspacePane } from "./WorkspacePane.svelte";
+export { default as PythonFile } from "./PythonFile.svelte";
 export { default as ProblemHeader } from "./ProblemHeader.svelte";
+
+/** Watching somebody work: the rules, the offer protocol, and the record. */
+export { Watching } from "./watching.svelte";
+export type { WatchingOptions } from "./watching.svelte";
 
 /**
  * The problem a file is an answer to, keyed by the file's name.

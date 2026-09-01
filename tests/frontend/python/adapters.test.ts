@@ -35,7 +35,7 @@ const standing = (entries: Metadata[]) => {
   /** A mutator hands its transaction back at once, and its answer later. */
   const submitting = () => ({
     transaction: mint(),
-    settled: Promise.resolve({ rejected: false } as const),
+    response: Promise.resolve({ rejected: false } as const),
   });
   const creating = () => ({ entry: mint(), ...submitting() });
   const calls = {

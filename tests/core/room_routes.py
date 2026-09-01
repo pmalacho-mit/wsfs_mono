@@ -48,7 +48,7 @@ def typing(into: str, text: str) -> bytes:
     return doc.get_update(was)
 
 
-async def settle(api: Api, entry: str) -> dict:
+async def bring_room_up_to_file(api: Api, entry: str) -> dict:
     answer = await api.http.post(
         f"/wsfs/workspaces/{api.workspace}/rooms/{entry}",
         headers={"X-User-Email": api.user},
@@ -69,7 +69,7 @@ async def a_file(api: Api, content: str) -> str:
 
 async def test_settling_a_room_fills_it_from_the_file(api, collaboration):
     entry = await a_file(api, "print(1)\n")
-    standing = await settle(api, entry)
+    standing = await bring_room_up_to_file(api, entry)
     assert standing["base"] is not None
     assert reading(await collaboration.document(entry)) == "print(1)\n"
 
@@ -79,17 +79,17 @@ async def test_an_empty_file_is_not_reseeded(api, collaboration):
     empty file's room holds nothing, and a host that read that as "no room"
     would seed it again on every visit."""
     entry = await a_file(api, "")
-    first = await settle(api, entry)
-    second = await settle(api, entry)
+    first = await bring_room_up_to_file(api, entry)
+    second = await bring_room_up_to_file(api, entry)
     assert first["base"] == second["base"]
     assert reading(await collaboration.document(entry)) == ""
 
 
 async def test_a_room_already_where_the_file_stands_is_left_alone(api, collaboration):
     entry = await a_file(api, "one\n")
-    await settle(api, entry)
+    await bring_room_up_to_file(api, entry)
     filled = await collaboration.document(entry)
-    await settle(api, entry)
+    await bring_room_up_to_file(api, entry)
     assert reading(await collaboration.document(entry)) == reading(filled)
 
 
@@ -97,11 +97,11 @@ async def test_a_write_a_member_made_is_told_rather_than_carried(api, collaborat
     """The room already holds the text, so what changes is only where this
     host believes it stands. Carrying it in again would say it twice."""
     entry = await a_file(api, "one\n")
-    await settle(api, entry)
+    await bring_room_up_to_file(api, entry)
     version = api.transaction()
     acknowledged(
         await api.write(
-            entry, (await settle(api, entry))["base"], "one\ntwo\n", transaction=version
+            entry, (await bring_room_up_to_file(api, entry))["base"], "one\ntwo\n", transaction=version
         )
     )
     await collaboration.send(entry, typing(await collaboration.document(entry), "two\n"))
@@ -113,7 +113,7 @@ async def test_a_write_a_member_made_is_told_rather_than_carried(api, collaborat
     )
     assert told.status_code == 204, told.text
     assert reading(await collaboration.document(entry)) == "one\ntwo\n"
-    assert (await settle(api, entry))["base"] == version
+    assert (await bring_room_up_to_file(api, entry))["base"] == version
 
 
 async def test_a_client_that_cannot_reach_the_room_hands_its_update_over(
@@ -123,7 +123,7 @@ async def test_a_client_that_cannot_reach_the_room_hands_its_update_over(
     the collaboration server should cost the direct route to everybody else,
     not everybody else."""
     entry = await a_file(api, "one\n")
-    await settle(api, entry)
+    await bring_room_up_to_file(api, entry)
     update = typing(await collaboration.document(entry), "handed over\n")
 
     answer = await api.http.post(
@@ -154,5 +154,5 @@ async def test_a_file_that_is_not_text_gets_no_room(api, collaboration):
             },
         )
     )
-    assert (await settle(api, entry))["base"] is None
+    assert (await bring_room_up_to_file(api, entry))["base"] is None
     assert await collaboration.document(entry) == b""

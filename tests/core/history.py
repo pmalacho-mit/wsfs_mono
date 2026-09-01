@@ -71,8 +71,8 @@ async def test_the_size_is_the_files_rather_than_the_rows(api: Api):
 
 async def test_my_drafts_and_refusals_are_here_and_told_apart(api: Api):
     entry, born = await a_file(api)
-    kept = api.transaction()
-    acknowledged(await api.write(entry, born, "kept\n", transaction=kept, draft=True))
+    draft_transaction = api.transaction()
+    acknowledged(await api.write(entry, born, "kept\n", transaction=draft_transaction, draft=True))
 
     """Moved on by somebody, and then written against where it used to be --
     a token that was REAL and is no longer current, which is an ordinary
@@ -84,7 +84,7 @@ async def test_my_drafts_and_refusals_are_here_and_told_apart(api: Api):
 
     versions, _ = await history(api, entry)
     standing = {one["transaction"]: one["standing"] for one in versions}
-    assert standing[kept] == "draft"
+    assert standing[draft_transaction] == "draft"
     assert standing[born] == "applied"
     assert "refused" in standing.values()
 

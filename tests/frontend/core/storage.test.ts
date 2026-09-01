@@ -101,12 +101,12 @@ describe("a store that refuses while a write is being queued", () => {
   it("leaves nothing behind in either place", async () => {
     const entry = mint();
     const queue = outbox();
-    const kept = inMemory();
+    const backing = inMemory();
     const digests: Digest[] = [];
     const bytes: Store = {
-      ...kept,
+      ...backing,
       put: async (content, at) => {
-        const digest = at ?? (await kept.put(content, at));
+        const digest = at ?? (await backing.put(content, at));
         digests.push(digest);
         throw new Error("QuotaExceededError");
       },
@@ -126,7 +126,7 @@ describe("a store that refuses while a write is being queued", () => {
     ).rejects.toThrow(/Quota/);
 
     expect(queue.entries()).toHaveLength(0);
-    for (const digest of digests) expect(await kept.text(digest)).toBeUndefined();
+    for (const digest of digests) expect(await backing.text(digest)).toBeUndefined();
   });
 });
 
@@ -134,13 +134,13 @@ describe("a store that refuses while a queued write goes out", () => {
   it("leaves the write it was restating still readable", async () => {
     const entry = mint();
     const queue = outbox();
-    const kept = inMemory();
+    const backing = inMemory();
     /**
      * The first two puts are the two writes being queued. The third is
      * `materialised` restating the chained one as whole text, which is the
      * one that must not be allowed to destroy it.
      */
-    const bytes = refusing(kept, (n) => n === 3);
+    const bytes = refusing(backing, (n) => n === 3);
 
     let answering = false;
     const flight = pump({

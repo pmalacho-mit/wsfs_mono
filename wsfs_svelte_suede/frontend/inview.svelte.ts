@@ -29,12 +29,12 @@ export class InView {
     api: Pick<PanelApi, "isVisible" | "onDidVisibilityChange">;
   }) {
     this.forget(panel.id);
-    const settle = (visible: boolean) =>
+    const recordVisibility = (visible: boolean) =>
       visible ? this.#showing.add(panel.id) : this.#showing.delete(panel.id);
-    settle(panel.api.isVisible);
+    recordVisibility(panel.api.isVisible);
     this.#watching.set(
       panel.id,
-      panel.api.onDidVisibilityChange(({ isVisible }) => settle(isVisible)),
+      panel.api.onDidVisibilityChange(({ isVisible }) => recordVisibility(isVisible)),
     );
   }
 

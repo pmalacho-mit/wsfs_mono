@@ -342,7 +342,7 @@ async def initialize_within(
     async with submitting(backend, controller, user_id) as submission:
         reconciliation = await reconcile(submission, body.outbox)
         # Before the snapshot, so it shows the names that settled.
-        reconciliation.events.extend(await service.settle(submission))
+        reconciliation.events.extend(await service.resolve_name_collisions(submission))
         response = await _snapshot_and_token(backend, submission, reconciliation)
         await submission.session.commit()
         return response, reconciliation.events
@@ -366,7 +366,7 @@ async def apply_within(
 ) -> tuple[service.Outcome, list[Emitted]]:
     async with submitting(backend, controller, user_id) as submission:
         outcome = await service.adjudicate(submission, request)
-        events = [*outcome.events, *await service.settle(submission)]
+        events = [*outcome.events, *await service.resolve_name_collisions(submission)]
         await submission.session.commit()
         return outcome, events
 

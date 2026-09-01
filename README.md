@@ -15,8 +15,14 @@ assistant exists; svelte does not know Python does. An upward import is a
 missing seam in core, not a reason to break the rule — and
 `tools/audit-imports.py` fails the build over one.
 
-Each package has a `README.md` for what it is and a `TESTING.md` for how to set
-its suite up on its own `main` branch.
+Each package has three documents:
+
+- **`README.md`** — what it is, and where its boundaries are.
+- **`GUIDE.md`** — a tour of its files, in the order they make sense in. Start
+  here if you are about to change something.
+- **`TESTING.md`** — how to set its suite up on its own `main` branch.
+
+[docs/GUIDE.md](./docs/GUIDE.md) is the map across all five.
 
 ## Every dependency is root-owned
 
@@ -44,14 +50,17 @@ python3 tools/audit-imports.py  # the boundaries
 cd samples/frontend && npm run check   # svelte-check, the real gate for components
 ```
 
+And the browser, which is the only thing that can answer whether a workspace
+actually works — see [docs/GUIDE.md](./docs/GUIDE.md) for the three-terminal
+setup:
+
+```bash
+cd samples/frontend && npm run test:browser -- --component FileTree --silence 300
+```
+
 `tests/run.sh` runs with **no `LIVEBLOCKS_SECRET_KEY`**, against core's
 in-process collaboration service. That is the headline check of the whole split:
 rooms are filesystem behaviour, so their tests must not need a vendor.
-
-Two `svelte-check` errors are expected and are the vendored dependencies', not
-these packages': `pierre-trees`'s `Action` has drifted from the `note` /
-`isNote` the file tree uses, and `@streamdown-svelte/math` is a subpackage
-nobody has installed.
 
 ## The sample host
 

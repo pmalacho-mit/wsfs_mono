@@ -40,7 +40,7 @@ async def lost(api: Api, other: Api, entry: str, mine: str, theirs: str = "their
     return transaction, refusal
 
 
-# -- what is kept ------------------------------------------------------------------
+# -- what is row ------------------------------------------------------------------
 
 
 async def test_a_refused_write_can_be_read_back_by_its_transaction(
@@ -135,9 +135,9 @@ async def test_a_refused_rename_keeps_the_name_that_was_wanted(
 
     refused(await api.rename(entry, token, "the-name-i-wanted.py"))
 
-    kept = session.exec(select(MODELS.refused_name)).one()
-    assert kept.name == "the-name-i-wanted.py"
-    assert str(kept.presented) == token
+    row = session.exec(select(MODELS.refused_name)).one()
+    assert row.name == "the-name-i-wanted.py"
+    assert str(row.presented) == token
     assert (await meta(api, entry))["name"] == "theirs.py"
 
 
@@ -152,8 +152,8 @@ async def test_a_refused_reparent_keeps_the_destination_that_was_wanted(
 
     refused(await api.reparent(entry, token, folder))
 
-    kept = session.exec(select(MODELS.refused_parent)).one()
-    assert str(kept.parent_entry_id) == folder
+    row = session.exec(select(MODELS.refused_parent)).one()
+    assert str(row.parent_entry_id) == folder
 
 
 async def test_a_refused_move_keeps_both_halves(api: Api, session: Session):
@@ -185,8 +185,8 @@ async def test_a_refused_delete_is_recorded_as_a_deletion_that_did_not_happen(
 
     refused(await api.delete(entry, was))
 
-    kept = session.exec(select(MODELS.refused_deletion)).one()
-    assert kept.deleted is True
+    row = session.exec(select(MODELS.refused_deletion)).one()
+    assert row.deleted is True
     assert not (await meta(api, entry)).get("deleted")
 
 
@@ -194,7 +194,7 @@ async def test_a_refused_create_keeps_all_four_and_its_content(
     api: Api, session: Session
 ):
     """The case with the most to lose: nothing about the entry exists anywhere
-    else, so a refusal that kept nothing would erase the whole thing."""
+    else, so a refusal that row nothing would erase the whole thing."""
     entry, transaction = new_id(), api.transaction()
 
     refused(
@@ -238,7 +238,7 @@ async def test_a_write_refused_because_the_entry_was_deleted_is_still_kept(
     assert session.exec(select(MODELS.refused_text)).one()
 
 
-# -- the two kept apart ------------------------------------------------------------
+# -- the two row apart ------------------------------------------------------------
 
 
 async def test_a_transaction_naming_no_entry_is_counted_on_its_own(
@@ -341,8 +341,8 @@ async def test_a_run_of_refusals_stores_what_was_typed_not_the_whole_divergence(
         transactions.append(transaction)
         previous = transaction
 
-    kept = session.exec(select(MODELS.refused_text)).all()
-    stored = {str(row.transaction): row for row in kept}
+    row = session.exec(select(MODELS.refused_text)).all()
+    stored = {str(row.transaction): row for row in row}
     assert len(stored) == 3
 
     first = stored[transactions[0]]

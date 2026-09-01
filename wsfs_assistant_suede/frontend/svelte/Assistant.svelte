@@ -80,12 +80,12 @@
    */
   let earlier = $state<HTMLElement | undefined>(undefined);
   $effect(() => {
-    const held = earlier;
-    if (held === undefined || !conversation.more) return;
+    const sentinel = earlier;
+    if (sentinel === undefined || !conversation.more) return;
     const watching = new IntersectionObserver((entries) => {
-      if (entries.some((one) => one.isIntersecting)) void conversation.earlier();
+      if (entries.some((entry) => entry.isIntersecting)) void conversation.earlier();
     });
-    watching.observe(held);
+    watching.observe(sentinel);
     return () => watching.disconnect();
   });
 </script>

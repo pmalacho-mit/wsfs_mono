@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { inMemory } from "../../../wsfs_core_suede/frontend/bytes";
-import { remembering } from "../../../wsfs_core_suede/frontend/kept";
+import { createInMemoryStore } from "../../../wsfs_core_suede/frontend/outbox-store";
 import { connect } from "../../../wsfs_core_suede/frontend/workspace";
 import { server } from "../fake";
 
@@ -18,16 +18,16 @@ const quickly = { watchdogMs: 45_000, minBackoffMs: 5, maxBackoffMs: 20 };
 
 const opened = () => {
   const wire = server();
-  const held = remembering();
+  const store = createInMemoryStore();
   const workspace = connect({
     workspace: "alpha",
     transport: wire,
     bytes: inMemory(),
-    kept: held.kept,
-    restored: held.restored(),
+    outboxStore: store.outboxStore,
+    restored: store.restored(),
     timing: quickly,
   });
-  return { wire, held, workspace };
+  return { wire, store, workspace };
 };
 
 describe("a snapshot", () => {
@@ -38,7 +38,7 @@ describe("a snapshot", () => {
     await settle();
 
     const taken = workspace.snapshot([entry]);
-    await taken.settled;
+    await taken.response;
     await settle();
 
     const sent = wire
@@ -60,16 +60,16 @@ describe("a snapshot", () => {
   });
 
   it("waits in the outbox while the server cannot be reached", async () => {
-    const { wire, workspace, held } = opened();
+    const { wire, workspace, store } = opened();
     await settle();
     const { entry } = workspace.create("notes.py", "one\n");
     await settle();
 
     wire.reachable(false);
     const taken = workspace.snapshot([entry]);
-    void taken.settled.catch(() => undefined);
+    void taken.response.catch(() => undefined);
     await settle();
-    expect(held.restored().entries.map((one) => one.request.transaction)).toContain(
+    expect(store.restored().entries.map((one) => one.request.transaction)).toContain(
       taken.transaction,
     );
 
@@ -97,7 +97,7 @@ describe("what a kernel produced", () => {
     const { entry } = workspace.create("run.py", "print(1)\n");
     await settle();
     const taken = workspace.snapshot([entry]);
-    await taken.settled;
+    await taken.response;
 
     /**
      * A function on the output itself, which is what a proxy or a lazily
@@ -115,7 +115,7 @@ describe("what a kernel produced", () => {
       [awkward, { output_type: "stream", text: "1\n" }],
       true,
     );
-    await ran.settled;
+    await ran.response;
     await settle();
 
     const sent = wire
@@ -139,12 +139,12 @@ describe("what a kernel produced", () => {
     const { entry } = workspace.create("run.py", "print(1)\n");
     await settle();
     const taken = workspace.snapshot([entry]);
-    await taken.settled;
+    await taken.response;
 
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     const ran = workspace.executed(entry, taken.transaction, [circular], false);
-    await ran.settled;
+    await ran.response;
     await settle();
 
     const sent = wire
@@ -168,11 +168,11 @@ describe("an execution", () => {
     const { entry } = workspace.create("run.py", "print(1)\n");
     await settle();
     const taken = workspace.snapshot([entry]);
-    await taken.settled;
+    await taken.response;
 
     const outputs = [{ output_type: "stream", text: "1\n" }];
     const ran = workspace.executed(entry, taken.transaction, outputs, true);
-    await ran.settled;
+    await ran.response;
     await settle();
 
     const sent = wire
@@ -195,16 +195,16 @@ describe("an execution", () => {
      * arrives.
      */
     const wire = server();
-    let store = remembering();
+    let store = createInMemoryStore();
     const open = () => {
-      const held = remembering(store.restored());
-      store = held;
+      const reopened = createInMemoryStore(store.restored());
+      store = reopened;
       return connect({
         workspace: "alpha",
         transport: wire,
         bytes: inMemory(),
-        kept: held.kept,
-        restored: held.restored(),
+        outboxStore: store.outboxStore,
+        restored: store.restored(),
         timing: quickly,
       });
     };
@@ -214,11 +214,11 @@ describe("an execution", () => {
     const { entry } = first.create("run.py", "print(1)\n");
     await settle();
     const taken = first.snapshot([entry]);
-    await taken.settled;
+    await taken.response;
 
     wire.reachable(false);
     const ran = first.executed(entry, taken.transaction, [{ text: "1\n" }], true);
-    void ran.settled.catch(() => undefined);
+    void ran.response.catch(() => undefined);
     await settle();
     first.stop();
 

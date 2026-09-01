@@ -29,7 +29,7 @@
 import { digestOf, type Digest, type Store } from "./bytes";
 import type { Payload } from "./content";
 import {
-  kept,
+  isDraft,
   UNSOUND,
   type Body,
   type Id,
@@ -162,14 +162,14 @@ export const pump = (wiring: Wiring): Pump => {
     entry: Id,
     payload: string | Uint8Array,
   ): Promise<{
-    held: string | Uint8Array;
+    stored: string | Uint8Array;
     content: Digest;
     basis?: Transaction;
   }> => {
     const chain = queue.chain(entry);
     const tail = chain[chain.length - 1];
     const whole = async () => ({
-      held: payload,
+      stored: payload,
       content: await digestOf(payload),
     });
     if (!isText(payload) || tail === undefined || !isElided(tail.request))
@@ -199,7 +199,7 @@ export const pump = (wiring: Wiring): Pump => {
     return delta.length >= payload.length
       ? whole()
       : {
-          held: delta,
+          stored: delta,
           content: await digestOf(delta),
           basis: tail.request.transaction,
         };
@@ -225,12 +225,12 @@ export const pump = (wiring: Wiring): Pump => {
     payload: string | Uint8Array,
   ): Promise<void> => {
     for (;;) {
-      const { held, content, basis } = await staged(entry, payload);
+      const { stored, content, basis } = await staged(entry, payload);
       if (basis !== undefined && queue.find(basis) === undefined) continue;
       /**
        * Row first, bytes second, and no `await` between the check and the
        * capture. Bytes with no row are work that is gone unnoticed; a row
-       * with no bytes is work that is gone and SAYS so, which `presenting`
+       * with no bytes is work that is gone and SAYS so, which `prepareSubmissions`
        * can report and drop.
        *
        * That is the right order for a tab that dies, and the wrong thing to
@@ -246,7 +246,7 @@ export const pump = (wiring: Wiring): Pump => {
         basis,
       );
       try {
-        await bytes.put(held, content);
+        await bytes.put(stored, content);
       } catch (reason) {
         released(queue.evict([captured.request.transaction]));
         throw reason;
@@ -402,7 +402,7 @@ export const pump = (wiring: Wiring): Pump => {
         owed.delete(transaction);
         failed.delete(transaction);
 
-        if (kept(answer)) {
+        if (isDraft(answer)) {
           /**
            * Kept, not applied. It leaves the queue like a refusal -- no event
            * will follow it either -- but it is not a failure and the writes

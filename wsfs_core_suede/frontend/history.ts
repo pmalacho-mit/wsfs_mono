@@ -69,12 +69,15 @@ export const merged = (
   entry: Id,
   told: Version_[],
 ): Told[] => {
-  const answered = new Set<Transaction>(told.map((one) => one.transaction));
+  const answered = new Set<Transaction>(told.map((version) => version.transaction));
   const mine = queued
-    .filter((held) => (held.request as Submitted).id === entry)
+    .filter((queued) => (queued.request as Submitted).id === entry)
     .map(fromOutbox)
-    .filter((one): one is Told => one !== undefined)
-    .filter((one) => !answered.has(one.transaction))
+    .filter((version): version is Told => version !== undefined)
+    .filter((version) => !answered.has(version.transaction))
     .reverse();
-  return [...mine, ...told.map((one): Told => ({ ...one, size: one.size ?? null }))];
+  return [
+    ...mine,
+    ...told.map((version): Told => ({ ...version, size: version.size ?? null })),
+  ];
 };

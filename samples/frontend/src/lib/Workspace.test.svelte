@@ -11,6 +11,7 @@
   import { resetMode, setMode } from "mode-watcher";
   import { connect, inMemory, type Workspace as Client } from "$wsfs";
   import { alone } from "./harness/liveblocks";
+  import { ADA, BACKEND, asUser } from "./harness/testing.svelte";
   import { offline } from "./harness/offline";
   import Workspace from "$pytutor/Workspace.svelte";
   import WorkspaceFrame from "$svelte/shell/WorkspaceFrame.svelte";
@@ -116,7 +117,10 @@
 {#snippet framed(pocket: Pocket, mode: string)}
   <div class="bg-background text-foreground h-full w-full {mode}">
     <WorkspaceFrame title="Workspace Example" event="Example" course="Example">
-      <Workspace workspace={pocket.workspace} entering={pocket.entering} />
+      <Workspace
+          base={BACKEND}
+          authorize={asUser(ADA)}
+          workspace={pocket.workspace} entering={pocket.entering} />
     </WorkspaceFrame>
   </div>
 {/snippet}
@@ -147,15 +151,15 @@
     const shell = container.querySelector("[data-region='shell']")!;
 
     /** Most of the pane, not a sliver of it, and certainly not nothing. */
-    const filling = (held: Element) =>
-      held.getBoundingClientRect().height / pane.getBoundingClientRect().height;
+    const filling = (region: Element) =>
+      region.getBoundingClientRect().height / pane.getBoundingClientRect().height;
     expect(pane.getBoundingClientRect().height).toBeGreaterThan(100);
     expect(filling(body)).toBeGreaterThan(0.9);
     expect(filling(shell)).toBeGreaterThan(0.9);
 
     /** And with a notice, which is the case the layout was written for. */
     pocket.storage = {
-      says: "work that has not been sent is not being written down",
+      message: "work that has not been sent is not being written down",
       full: false,
     };
     await delay({ frames: 2 });
@@ -177,6 +181,8 @@
         course="Example"
       >
         <WorkspacePane
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={pocket.workspace}
           entering={pocket.entering}
           storage={pocket.storage}

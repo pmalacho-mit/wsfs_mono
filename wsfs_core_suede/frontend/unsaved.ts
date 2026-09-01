@@ -23,7 +23,7 @@
  * back into a workspace stays instant in every moment where there was nothing
  * to lose anyway.
  */
-const held = new Set<string>();
+const unsentEntries = new Set<string>();
 
 let detach: (() => void) | undefined;
 
@@ -56,18 +56,18 @@ const release_ = () => {
  * clean must not take the prompt away from the first.
  */
 export const hold = (id: string): void => {
-  held.add(id);
+  unsentEntries.add(id);
   attach();
 };
 
 /** Says it is not any more, whichever way the text left. */
 export const release = (id: string): void => {
-  held.delete(id);
-  if (held.size === 0) release_();
+  unsentEntries.delete(id);
+  if (unsentEntries.size === 0) release_();
 };
 
 /** Whether anything is still holding work that has not been sent. */
-export const anythingUnsaved = (): boolean => held.size > 0;
+export const anythingUnsaved = (): boolean => unsentEntries.size > 0;
 
 /**
  * Forgets everything, and stops asking.
@@ -77,6 +77,6 @@ export const anythingUnsaved = (): boolean => held.size > 0;
  * work that no longer exists anywhere.
  */
 export const forgetAll = (): void => {
-  held.clear();
+  unsentEntries.clear();
   release_();
 };

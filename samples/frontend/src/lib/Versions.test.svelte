@@ -48,7 +48,7 @@
       await new Promise((carry) => setTimeout(carry, 400));
       const made = workspace.create(this.path, "one\n");
       this.entry = made.entry;
-      await made.settled;
+      await made.response;
       return workspace;
     }
 
@@ -121,7 +121,7 @@
     onAbort(() => ((pocket.open = false), pocket.dispose()));
     const workspace = await pocket.start();
 
-    await workspace.write(pocket.path, "the second thing\n").settled;
+    await workspace.write(pocket.path, "the second thing\n").response;
 
     pocket.open = true;
     await delay({ frames: 4 });
@@ -176,7 +176,7 @@
 
     pocket.wire!.reachable(false);
     const stranded = workspace.write(pocket.path, "typed with no server\n");
-    void stranded.settled.catch(() => undefined);
+    void stranded.response.catch(() => undefined);
     await delay({ milliseconds: 300 });
 
     pocket.open = true;
@@ -233,7 +233,7 @@
      * control is not what this is for.
      */
     for (let at = 0; at < 14; at += 1)
-      await workspace.write(pocket.path, `version ${at}\n`).settled;
+      await workspace.write(pocket.path, `version ${at}\n`).response;
 
     pocket.open = true;
     await delay({ frames: 4 });

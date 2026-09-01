@@ -57,7 +57,15 @@ the work behind every route for a host that is also a consumer. `clone` and
 spans two workspaces and `place`'s destructive half is a thing a host may mean
 and a browser may not.
 
+## Reading it
+
+[GUIDE.md](./GUIDE.md) walks the files in the order they make sense in.
+
 ## Testing
 
 See [TESTING.md](./TESTING.md). The headline check is `pytest` green with no
 `LIVEBLOCKS_SECRET_KEY` and no network.
+
+**Setting the suite up in this repo's own `main` branch?**
+[HANDOFF.md](./HANDOFF.md) is written for that: what to port, what needs a
+consumer app, and the traps that cost time the first time round.

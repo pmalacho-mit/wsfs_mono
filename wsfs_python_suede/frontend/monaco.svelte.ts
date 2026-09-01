@@ -1,22 +1,16 @@
 /**
- * Monaco, as an editing surface.
+ * Monaco, bound to a wsfs file.
  *
- * THIS PACKAGE IS THE ONLY ONE THAT KNOWS MONACO EXISTS -- see the README.
- * What the rest of the system asks of an editor is `Editing` in
- * `wsfs_svelte_suede`, and everything below is this editor's answer to it.
- *
- * The three rules that file states are followed here as they are anywhere:
- * `bind` hands the room's `Y.Text` to the editor's model rather than making a
- * document of its own, `edits` exists from the moment the editor mounts rather
- * than from the moment a room answers, and nothing here writes the file's text
- * into the document.
+ * THIS PACKAGE IS THE ONLY ONE THAT KNOWS MONACO EXISTS. What the shell asks
+ * of an editor is `Editor` in `wsfs_svelte_suede`, and this is Monaco's answer
+ * to it -- four members, three of which exist so that what somebody typed can
+ * be kept when no shared document holds it yet.
  */
 import type * as Y from "yjs";
 
 import type {
-  Edits,
-  Editing,
-  Opening,
+  Editor as EditorContract,
+  OpenText,
   Pressed,
 } from "../../wsfs_svelte_suede/frontend";
 import { Editor } from "../../python-monaco-suede";
@@ -24,10 +18,9 @@ import { UserEdits } from "./edits";
 
 type CodeEditor = Parameters<NonNullable<Editor.Props["onEditor"]>>[0];
 
-/** Everything an open file's editor is wired with, minus the file itself. */
+/** Everything every editor in a workspace is configured with, minus the file. */
 export type EditorProps = Omit<Editor.Props, "file">;
 
-/** The two halves of a path, named once so every surface agrees. */
 const nameOf = (path: string) => path.split("/").pop() ?? path;
 const holderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 
@@ -40,100 +33,107 @@ class Holder {
   }
 }
 
-export class MonacoEditing implements Editing {
-  readonly file: Editor.Model;
-  readonly props: EditorProps;
+/**
+ * One file, as Monaco has it open.
+ *
+ * The MODEL outlives the editor: a tab dragged to another group is torn down
+ * and rebuilt, so what a person typed lives here rather than in whichever
+ * `IStandaloneCodeEditor` happens to be drawing it.
+ */
+export class MonacoModel implements EditorContract {
+  readonly model: Editor.Model;
 
   #holder: Holder;
-  #held: string;
-  #editor: CodeEditor | undefined = $state(undefined);
-  #edits: UserEdits | undefined = $state(undefined);
-  #pressed = new Set<(key: Pressed) => void>();
+  #openedOn: string;
+  #editor: CodeEditor | undefined;
+  #edits: UserEdits | undefined;
+  #keyListeners = new Set<(pressed: Pressed) => void>();
 
-  constructor(file: Opening, props: EditorProps = {}) {
-    this.#held = file.content;
+  constructor(file: OpenText) {
+    this.#openedOn = file.showing;
     this.#holder = new Holder(holderOf(file.path));
-    this.file = new Editor.Model({
+    this.model = new Editor.Model({
       name: nameOf(file.path),
       parent: this.#holder,
-      source: file.content,
+      source: this.#openedOn,
       readonly: file.readonly,
     });
-    this.props = { ...props, onEditor: (editor) => this.#mounted(editor, props) };
   }
 
-  /** The editor itself, for a consumer that has genuine Monaco business. */
+  /** The editor itself, for a consumer with genuine Monaco business. */
   get editor() {
     return this.#editor;
   }
 
-  get edits(): Edits | undefined {
+  /**
+   * There is no edit stream until Monaco has handed over an editor, and the
+   * shell is not told about this model until there is -- so reaching this is a
+   * caller having got the order wrong rather than a case to handle.
+   */
+  get edits(): UserEdits {
+    if (this.#edits === undefined)
+      throw new Error("no editor is watching this file yet");
     return this.#edits;
   }
 
-  value() {
-    return (
-      this.file.sourceSync?.toString() ??
-      this.#editor?.getModel()?.getValue() ??
-      this.#held
-    );
-  }
-
-  bound() {
-    return this.file.sourceSync as Y.Text | undefined;
-  }
-
-  /**
-   * BOUND ONLY ONCE THE DOCUMENT HAS BEEN RECEIVED, and the caller is what
-   * guarantees that. `MonacoBinding` makes the model say whatever the `Y.Text`
-   * says the moment it is constructed -- so binding an unsynchronised document
-   * does not show an empty file, it MAKES one, and the next store writes that
-   * over the real content.
-   */
-  bind(text: Y.Text) {
-    this.file.sourceSync = text;
-    this.#edits?.attach(text);
-  }
-
-  replace(value: string) {
-    this.#held = value;
-    this.#editor?.getModel()?.setValue(value);
-  }
-
-  moved(path: string) {
-    this.file.name = nameOf(path);
-    this.#holder.path = holderOf(path);
-  }
-
-  keys(pressed: (key: Pressed) => void) {
-    this.#pressed.add(pressed);
-    return () => void this.#pressed.delete(pressed);
-  }
-
-  dispose() {
-    this.#edits?.dispose();
-    this.#edits = undefined;
-    this.#pressed.clear();
-  }
-
-  #mounted(editor: CodeEditor, props: EditorProps) {
+  /** Monaco has an editor drawing this model. Returns the undo. */
+  watch(editor: CodeEditor): () => void {
     this.#editor = editor;
-    const theirs = props.onEditor?.(editor);
-    const edits = new UserEdits(editor, this.bound());
+    const edits = new UserEdits(editor, this.document());
     this.#edits = edits;
-    const keys = editor.onKeyDown((event) => this.#told(event));
-    return {
-      dispose: () => {
-        theirs?.dispose();
-        keys.dispose();
-        edits.dispose();
-        if (this.#edits === edits) this.#edits = undefined;
-        if (this.#editor === editor) this.#editor = undefined;
-      },
+    const keys = editor.onKeyDown((event) => this.#pressed(event));
+    return () => {
+      keys.dispose();
+      edits.dispose();
+      if (this.#edits === edits) this.#edits = undefined;
+      if (this.#editor === editor) this.#editor = undefined;
     };
   }
 
-  #told(event: {
+  text() {
+    return (
+      this.document()?.toString() ??
+      this.#editor?.getModel()?.getValue() ??
+      this.#openedOn
+    );
+  }
+
+  replace(next: string) {
+    this.#editor?.getModel()?.setValue(next);
+  }
+
+  keys(listener: (pressed: Pressed) => void) {
+    this.#keyListeners.add(listener);
+    return () => void this.#keyListeners.delete(listener);
+  }
+
+  /**
+   * BOUND ONLY ONCE THE DOCUMENT HAS ARRIVED, which the shell guarantees by
+   * not offering one before then. `MonacoBinding` makes the model say whatever
+   * the `Y.Text` says the moment it is constructed -- so binding an
+   * unsynchronised document does not show an empty file, it MAKES one, and the
+   * next store writes that over the real content.
+   */
+  bind(document: Y.Text) {
+    if (this.model.sourceSync === document) return;
+    this.model.sourceSync = document;
+    this.#edits?.attach(document);
+  }
+
+  moved(path: string) {
+    this.model.name = nameOf(path);
+    this.#holder.path = holderOf(path);
+  }
+
+  dispose() {
+    this.#keyListeners.clear();
+  }
+
+  private document() {
+    return this.model.sourceSync as Y.Text | undefined;
+  }
+
+  #pressed(event: {
     browserEvent: KeyboardEvent;
     ctrlKey: boolean;
     metaKey: boolean;
@@ -151,6 +151,6 @@ export class MonacoEditing implements Editing {
         event.stopPropagation();
       },
     };
-    for (const listener of this.#pressed) listener(pressed);
+    for (const listener of this.#keyListeners) listener(pressed);
   }
 }

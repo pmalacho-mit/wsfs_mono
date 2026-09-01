@@ -16,7 +16,7 @@ import { mint } from "../../../wsfs_core_suede/frontend/identity";
 import {
   chained,
   isElided,
-  presenting,
+  prepareSubmissions,
   queue,
   textOf,
   type Queue,
@@ -187,7 +187,7 @@ describe("the outbox", () => {
     const requests = [mint(), mint(), mint()].map((id) => writing(id, "x", "v0"));
     for (const request of requests) items.capture(request, await bytes.put("x"));
 
-    const { presented: shown } = await presenting(items.entries(), items, bytes);
+    const { presented: shown } = await prepareSubmissions(items.entries(), items, bytes);
     expect(shown.map((request) => request.transaction)).toEqual(
       requests.map((request) => request.transaction),
     );
@@ -198,7 +198,7 @@ describe("the outbox", () => {
     const items = queue();
     await queued(items, bytes, mint(), "the whole document");
 
-    const { presented: [shown] } = await presenting(items.entries(), items, bytes);
+    const { presented: [shown] } = await prepareSubmissions(items.entries(), items, bytes);
     expect((shown as Write).content).toEqual({
       type: "text",
       content: "the whole document",
@@ -214,7 +214,7 @@ describe("the outbox", () => {
     await queued(items, bytes, entry, "two");
     await queued(items, bytes, entry, "three");
 
-    const { presented: shown } = await presenting(items.entries(), items, bytes);
+    const { presented: shown } = await prepareSubmissions(items.entries(), items, bytes);
     expect(shown.map((request) => request.transaction)).toEqual([
       first.transaction,
     ]);

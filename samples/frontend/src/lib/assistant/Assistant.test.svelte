@@ -273,7 +273,7 @@
      * Oldest at the top, and each question followed by its answer -- which is
      * the order they were said in, and the order a chat is read in.
      */
-    expect(bubbles(container).map((one) => one.getAttribute("data-from"))).toEqual([
+    expect(bubbles(container).map((bubble) => bubble.getAttribute("data-from"))).toEqual([
       "user",
       "assistant",
       "user",
@@ -293,7 +293,7 @@
   name="an answer arrives a piece at a time"
   body={async ({ set, container, expect, delay }) => {
     const pocket = set(new Pocket());
-    pocket.tutor.says("Because ", "the loop ", "never ends.");
+    pocket.tutor.respondWith("Because ", "the loop ", "never ends.");
     await delay({ frames: 2 });
 
     const asking = pocket.ask("why is this slow?");
@@ -369,7 +369,7 @@
   name="an answer that stops halfway says so"
   body={async ({ set, container, expect, delay, capture }) => {
     const pocket = set(new Pocket());
-    pocket.tutor.says("I was about to say");
+    pocket.tutor.respondWith("I was about to say");
     pocket.tutor.fails("the model hung up");
     await delay({ frames: 2 });
 

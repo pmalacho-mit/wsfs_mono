@@ -72,11 +72,11 @@
     said = undefined;
     reading_version = true;
     try {
-      const held = await workspace.at(entry, version.transaction);
+      const content = await workspace.at(entry, version.transaction);
       said =
-        held.kind === "text"
-          ? held.text
-          : `${held.mime} — ${held.bytes.byteLength} bytes, which cannot be shown here.`;
+        content.kind === "text"
+          ? content.text
+          : `${content.mime} — ${content.bytes.byteLength} bytes, which cannot be shown here.`;
     } catch (reason) {
       said = reason instanceof Error ? reason.message : String(reason);
     } finally {
@@ -90,7 +90,7 @@
    * row the server actually gave us, and unsent work never moves the window.
    */
   const oldest = () =>
-    [...versions].reverse().find((one) => one.at.accepted !== null)?.at
+    [...versions].reverse().find((version) => version.at.accepted !== null)?.at
       .accepted;
 
   const read = async (again: boolean) => {
@@ -128,8 +128,8 @@
     restoring = version.transaction;
     failure = undefined;
     try {
-      const { settled } = await workspace.restore(entry, version.transaction);
-      const answer = await settled;
+      const { response } = await workspace.restore(entry, version.transaction);
+      const answer = await response;
       if (answer.rejected) {
         failure = `That version was not put back: ${answer.reason}`;
         return;
@@ -150,15 +150,15 @@
    * apart, and the one a person recognises is the moment they typed it. Falls
    * back to the server's only when the client said nothing.
    */
-  const when = (one: Told) => {
-    const reading = localised(one.at);
+  const when = (version: Told) => {
+    const reading = localised(version.at);
     if (reading !== undefined) return reading.local.toUTCString().slice(0, 22);
-    return one.at.accepted === null
+    return version.at.accepted === null
       ? "just now"
-      : new Date(one.at.accepted).toUTCString().slice(0, 22);
+      : new Date(version.at.accepted).toUTCString().slice(0, 22);
   };
 
-  const says: Record<Told["standing"], string> = {
+  const standingLabels: Record<Told["standing"], string> = {
     queued: "not sent yet",
     applied: "saved",
     draft: "kept here",
@@ -175,12 +175,12 @@
   /** Sentinel at the end of the list: seeing it is asking for the next page. */
   let sentinel = $state<HTMLElement | undefined>(undefined);
   $effect(() => {
-    const held = sentinel;
-    if (held === undefined || held === null || !more) return;
+    const watched = sentinel;
+    if (watched === undefined || watched === null || !more) return;
     const watching = new IntersectionObserver((entries) => {
-      if (entries.some((one) => one.isIntersecting)) void read(true);
+      if (entries.some((entry) => entry.isIntersecting)) void read(true);
     });
-    watching.observe(held);
+    watching.observe(watched);
     return () => watching.disconnect();
   });
 </script>
@@ -241,7 +241,7 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <Badge variant={tone(version.standing)} class="shrink-0">
-                  {says[version.standing]}
+                  {standingLabels[version.standing]}
                 </Badge>
                 <span class="text-muted-foreground truncate text-xs">
                   {when(version)}

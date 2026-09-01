@@ -66,9 +66,9 @@ const clamp = (scale: number) =>
  */
 const stored = (panel: string): number | undefined => {
   try {
-    const held = globalThis.localStorage?.getItem(`${KEY}${panel}`);
-    if (held === null || held === undefined) return undefined;
-    const scale = Number(held);
+    const remembered = globalThis.localStorage?.getItem(`${KEY}${panel}`);
+    if (remembered === null || remembered === undefined) return undefined;
+    const scale = Number(remembered);
     return Number.isFinite(scale) ? clamp(scale) : undefined;
   } catch {
     return undefined;
@@ -106,10 +106,10 @@ export class TextSize {
    * drawn at eight times its size has no way back to one that is not.
    */
   set scale(to: number) {
-    const held = clamp(Number.isFinite(to) ? to : USUAL);
-    if (held === this.#scale) return;
-    this.#scale = held;
-    if (this.#remember) keep(this.panel, held);
+    const within = clamp(Number.isFinite(to) ? to : USUAL);
+    if (within === this.#scale) return;
+    this.#scale = within;
+    if (this.#remember) keep(this.panel, within);
   }
 
   /** How this reads to a person: `1.5` is 150%. */

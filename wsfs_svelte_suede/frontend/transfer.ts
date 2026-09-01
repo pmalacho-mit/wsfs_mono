@@ -204,10 +204,10 @@ export const zipped = async (entries: readonly Archived[]): Promise<Blob> => {
 
 type Readable = Pick<Workspace, "index" | "read">;
 
-const bytesOf = (held: { kind: string; text?: string; bytes?: Uint8Array }) =>
-  held.kind === "text"
-    ? encoder.encode(held.text ?? "")
-    : (held.bytes ?? new Uint8Array());
+const bytesOf = (content: { kind: string; text?: string; bytes?: Uint8Array }) =>
+  content.kind === "text"
+    ? encoder.encode(content.text ?? "")
+    : (content.bytes ?? new Uint8Array());
 
 /**
  * How much of a path is the folder HOLDING the one being downloaded -- which

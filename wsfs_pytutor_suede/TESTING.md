@@ -157,3 +157,17 @@ npm run test:browser -- --component Tutor --browser chromium --silence 180
 `Report server timed out`, which reads like a hang and is not one. Run scenarios
 one at a time and `curl -X DELETE http://localhost:8099/rendezvous` between
 runs, or the second run meets the first one's agreed ids and tests nothing.
+
+---
+
+## Running the backend suite and the browser suite together
+
+Don't. `./tests/run.sh`'s compose file creates a second docker network, and the
+browser driver picks its network by looking for exactly one -- so a concurrent
+run dies with `Multiple networks found, and no filter was provided to select
+one`, which names neither the suite nor the network that confused it.
+
+For the same reason, don't point `pytest` at a database a browser run is using:
+the suite truncates every table before each test, and the long-running host's
+prepared-statement cache is invalidated underneath it. That surfaces much later
+as `InvalidCachedStatementError` in an unrelated request.

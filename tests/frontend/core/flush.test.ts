@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inMemory } from "../../../wsfs_core_suede/frontend/bytes";
-import { remembering, type Kept, type Restored } from "../../../wsfs_core_suede/frontend/kept";
+import { createInMemoryStore, type OutboxStore, type Restored } from "../../../wsfs_core_suede/frontend/outbox-store";
 import { connect } from "../../../wsfs_core_suede/frontend/workspace";
 import { server } from "../fake";
 
@@ -10,12 +10,12 @@ const quickly = { watchdogMs: 45_000, minBackoffMs: 5, maxBackoffMs: 20 };
 /** A store whose writes land later, as a real disk's do. */
 const lagging = (over: ReturnType<typeof remembering>) => {
   const pending: (() => void)[] = [];
-  const kept: Kept = {
-    moved: (change) => pending.push(() => over.kept.moved(change)),
-    answered: (transactions) => pending.push(() => over.kept.answered(transactions)),
+  const outboxStore: OutboxStore = {
+    moved: (change) => pending.push(() => over.outboxStore.moved(change)),
+    answered: (transactions) => pending.push(() => over.outboxStore.answered(transactions)),
   };
   return {
-    kept,
+    outboxStore,
     restored: () => over.restored(),
     /** What a tab closing does NOT do. */
     land: () => {
@@ -28,22 +28,22 @@ const lagging = (over: ReturnType<typeof remembering>) => {
 describe("an answer written just before the tab went", () => {
   it("is still accounted for when the teardown waited for the disk", async () => {
     const wire = server();
-    const backing = remembering();
+    const backing = createInMemoryStore();
     const slow = lagging(backing);
 
     const first = connect({
       workspace: "alpha",
       transport: wire,
       bytes: inMemory(),
-      kept: slow.kept,
+      outboxStore: slow.outboxStore,
       restored: slow.restored(),
       timing: quickly,
     });
     await settle();
-    await first.create("notes.py", "one\n").settled;
+    await first.create("notes.py", "one\n").response;
     await settle();
     const written = first.write("notes.py", "two\n");
-    await written.settled;
+    await written.response;
     await settle();
 
     /** The tab goes with writes still on their way to the disk. */
@@ -55,13 +55,13 @@ describe("an answer written just before the tab went", () => {
       workspace: "alpha",
       transport: wire,
       bytes: inMemory(),
-      kept: slow.kept,
+      outboxStore: slow.outboxStore,
       restored: slow.restored(),
       timing: quickly,
     });
     await settle();
     await settle();
-    expect(again.unsettled([written.transaction])).toEqual([]);
+    expect(again.unanswered([written.transaction])).toEqual([]);
     again.stop();
   });
 });
@@ -78,24 +78,24 @@ describe("a teardown that does not wait", () => {
      * that await it.
      */
     const wire = server();
-    const backing = remembering();
+    const backing = createInMemoryStore();
     const slow = lagging(backing);
 
     const first = connect({
       workspace: "alpha",
       transport: wire,
       bytes: inMemory(),
-      kept: slow.kept,
+      outboxStore: slow.outboxStore,
       restored: slow.restored(),
       timing: quickly,
     });
     await settle();
-    await first.create("notes.py", "one\n").settled;
+    await first.create("notes.py", "one\n").response;
     await settle();
     const written = first.write("notes.py", "two\n");
-    await written.settled;
+    await written.response;
     await settle();
-    await first.write("notes.py", "three\n").settled;
+    await first.write("notes.py", "three\n").response;
     await settle();
 
     /** Killed: nothing lands. */
@@ -105,13 +105,13 @@ describe("a teardown that does not wait", () => {
       workspace: "alpha",
       transport: wire,
       bytes: inMemory(),
-      kept: slow.kept,
+      outboxStore: slow.outboxStore,
       restored: slow.restored(),
       timing: quickly,
     });
     await settle();
     await settle();
-    expect(again.unsettled([written.transaction])).toEqual([written.transaction]);
+    expect(again.unanswered([written.transaction])).toEqual([written.transaction]);
     again.stop();
   });
 });

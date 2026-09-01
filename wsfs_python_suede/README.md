@@ -20,7 +20,7 @@ responsibility to ship bindings for other UI libraries.
 
 So: everything here that is **not** Svelte-bound is kept free of it — the
 kernel's filesystem adapter, the editor's file provider, the edit refinement —
-so that it survives that changing. Only `MonacoSurface.svelte` and
+so that it survives that changing. Only `MonacoEditor.svelte` and
 `Runner.svelte` are components.
 
 ## No backend, and the reason is worth re-deriving
@@ -48,6 +48,14 @@ into knows something the filesystem does not. This package is that consumer, and
 the override is what makes *what Python reads is what the editor shows* true
 rather than merely intended. The type is core's; the implementation is here.
 
+## Reading it
+
+[GUIDE.md](./GUIDE.md) walks the files in the order they make sense in.
+
 ## Testing
 
 See [TESTING.md](./TESTING.md).
+
+**Setting the suite up in this repo's own `main` branch?**
+[HANDOFF.md](./HANDOFF.md) is written for that: what to port, what needs a
+consumer app, and the traps that cost time the first time round.

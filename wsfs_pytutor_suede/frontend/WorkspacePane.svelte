@@ -12,6 +12,7 @@
    * it both ways and measure.
    */
   import type {
+    Authorized,
     Enter,
     Faltering,
     Reclamation,
@@ -23,6 +24,8 @@
   let {
     workspace,
     entering,
+    base,
+    authorize,
     storage,
     room,
     courseEvent,
@@ -38,6 +41,10 @@
      * contract and one adapter per service, and nothing above core names one.
      */
     entering: Enter;
+    /** Where this workspace's chat and study routes are, and how to reach
+     *  them. See `Workspace`; there is deliberately no default. */
+    base: string;
+    authorize: Authorized;
     /** Which sitting of which course this is, for the study's records. */
     courseEvent?: string;
     /** What this course was set up to run. See `stuck.ts`. */
@@ -84,7 +91,7 @@
       class="bg-destructive/10 text-destructive border-destructive/30 shrink-0 border-b px-3 py-2 text-sm"
       data-region="storage-trouble"
     >
-      {storage.says}.{storage.full
+      {storage.message}.{storage.full
         ? " Free some space — until then, anything typed here only lives in this tab."
         : " Anything typed here only lives in this tab until it is sent."}
     </p>
@@ -106,6 +113,8 @@
     <Workspace
       {workspace}
       {entering}
+      {base}
+      {authorize}
       {model}
       {courseEvent}
       {protocol}

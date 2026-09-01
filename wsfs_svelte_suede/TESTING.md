@@ -57,10 +57,11 @@ is where the Svelte toolchain and the aliases live:
 cd samples/frontend && npm install && npm run check
 ```
 
-Two errors are expected and are the vendored dependencies', not this package's:
-`pierre-trees`'s `Action` has drifted from the `note` / `isNote` this tree uses,
-and `@streamdown-svelte/math` is a subpackage nobody has installed. Anything
-else in `release/` is yours.
+It should report zero errors. `pierre-trees`'s context menu had drifted behind
+what the file tree expects — no `note` row, no `isNote` — which was a runtime
+`TypeError` rather than only a type error, so the menu rendered nothing. It has
+been fixed in the vendored copy; `bash pierre-trees-svelte-suede/.suede/core/upstream`
+is how that change goes back to the library.
 
 ## 3. What vitest covers, and what it deliberately does not
 
@@ -115,25 +116,34 @@ Three things about driving it, each of which has cost somebody an hour:
   later, which makes a full run's output nearly unreadable.
 - **`curl -X DELETE http://localhost:8099/rendezvous` between runs.** Nothing
   resets it for you, so a re-run against a live backend meets the previous
-  run's agreed ids and quietly tests nothing.
+  run's agreed ids and quietly tests nothing. **Skipping it does not look like
+  skipping it**: it surfaces as `room did not open: never synced`, which reads
+  exactly like a missing Liveblocks key. Clear it before you believe any
+  diagnosis.
+- **A room suite needs a sync engine, and a local one is free.** `npx liveblocks
+  dev --port 1153` mints its own `sk_localdev`; give the host
+  `LIVEBLOCKS_SECRET_KEY=sk_localdev LIVEBLOCKS_BASE_URL=http://localhost:1153`,
+  the dev server `VITE_LIVEBLOCKS_BASE_URL=http://localhost:1153`, and the run
+  `--forward 5173,1153`. See `docs/GUIDE.md` for the whole recipe. Worth doing
+  rather than skipping those tests: a real room is what exposed
+  `rescueWhatWasTyped` leaving a file dirty after it had already saved it.
 
 Do not pipe a run through `tail` — it shows nothing until the run ends, so a
 hang is indistinguishable from progress. Redirect to a file and read it.
 
-## 5. The two seams this repo owns, and how to test a change to either
+## 5. The seam this repo owns, and how to test a change to it
 
-**`EditorSurface` (`frontend/surface.ts`).** Three rules, and each has cost
-somebody a file: bind to the room's document rather than one of your own;
-report edits with `shared: false` before there is a document; never diff the
-file into the document. `TextareaSurface` is this package's implementation and
-the thing to test a fourth surface against — if it passes the same scenarios,
-the protocol is doing its job.
+**`Editor` (`frontend/editor.ts`).** Three rules, and each has cost somebody a
+file: bind to the room's document rather than one of your own; report edits
+with `shared: false` before there is a document; never diff the file into the
+document. `TextareaBinding` is this package's implementation and the thing to
+test a second one against — if it passes the same scenarios, the contract is
+doing its job.
 
-**The extension points on `FileView`.** `beneath`, `above`, `hasCompanion`,
-`onKeys` and `surfaceFor` are holes rather than features: a terminal under a
-program is a Python idea and a problem statement above one is a course's, and
-this package has heard of neither. A test that renders `FileView` without any
-of them and gets a working editor is the assertion that the holes are optional.
+**The holes are optional, and that is what to assert.** `<Workspace {workspace}
+{entering} />` with no `editorFor`, no `events` and no `onReady` must render a
+tree, open a file and let you type into it. A test that does exactly that is
+the proof that this package is still standalone.
 
 ## 6. The boundary
 
@@ -146,15 +156,53 @@ Nothing here may reach for pyodide, monaco, a model library, or any of
 is the mechanical statement of that, and unlike a file inventory it does not go
 stale.
 
-## 7. Known work, not yet done
+## 7. The shell, and the three holes in it
 
-The application shell that composes these pieces currently lives in
-`wsfs_pytutor_suede`, because as it stands it wires Monaco, a kernel, the chat
-panel and the study instrument, and only that package may depend on all four.
-The intended end state is a `WorkspacePane` skeleton *here* with those four
-arriving through the extension points above. `FileView` has already been taken
-apart that way and is the shape to copy; the dock, the tree wiring and the
-snapshot taker have not.
+`Workspace.svelte` is this package's centre: it lays out an explorer on the left
+and a dock of open files beside it, and hands everything it must not know about
+to somebody else.
 
-Do that work with the browser suite running, not with `svelte-check` alone.
-Nothing in a type says whether a file still opens.
+| Hole | Shape | Filled by |
+|---|---|---|
+| `editorFor` | `(path) => Snippet<[OpenText, number]> \| undefined` | Monaco, in `wsfs_python_suede` |
+| `events` | `WorkspaceEvents` | the stuck detector, in `wsfs_pytutor_suede` |
+| `onReady` | `(shell: Shell) => void` | the chat panel, in `wsfs_assistant_suede` |
+
+A path `editorFor` has no answer for gets `Textarea.svelte`, which is bound to
+the room's document and correct rather than capable — so **a workspace of plain
+documents works with no consumer at all**, and that is the thing to test when
+you change the shell:
+
+```svelte
+<Workspace {workspace} {entering} />
+```
+
+No `editorFor`, no `events`, no `onReady`. If that renders a tree, opens a file
+and lets you type into it, the holes are genuinely optional.
+
+`onReady` hands back the dockview grid plus the panel references to position
+against, which is how a consumer adds its own:
+
+```ts
+shell.grid.addComponentPanel("panel", { render: mine }, {
+  position: { direction: "right", referencePanel: shell.beside.documents },
+});
+```
+
+`Panel.svelte` exists for exactly that: dockview resolves a panel by a name the
+view was built with, so the shell declares one generic panel that renders a
+snippet it never looks at.
+
+---
+
+## Running the backend suite and the browser suite together
+
+Don't. `./tests/run.sh`'s compose file creates a second docker network, and the
+browser driver picks its network by looking for exactly one -- so a concurrent
+run dies with `Multiple networks found, and no filter was provided to select
+one`, which names neither the suite nor the network that confused it.
+
+For the same reason, don't point `pytest` at a database a browser run is using:
+the suite truncates every table before each test, and the long-running host's
+prepared-statement cache is invalidated underneath it. That surfaces much later
+as `InvalidCachedStatementError` in an unrelated request.

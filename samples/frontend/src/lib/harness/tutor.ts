@@ -17,7 +17,7 @@ export type Scripted = {
   /** Just enough of an assistant for `Conversation`. */
   assistant: Assistant;
   /** What the next answer will be, one delta at a time. */
-  says: (...deltas: string[]) => void;
+  respondWith: (...deltas: string[]) => void;
   /** And how it will end, if it ends badly. */
   fails: (why: string | undefined) => void;
   /** Everything that has been asked, in order. */
@@ -38,7 +38,7 @@ export const scripted = (told: Turn[] = [], more = false): Scripted => {
   let next = 0;
 
   return {
-    says: (...said) => (deltas = said),
+    respondWith: (...said) => (deltas = said),
     fails: (why) => (failure = why),
     asked: () => asked,
     reads: () => reads,
@@ -56,9 +56,9 @@ export const scripted = (told: Turn[] = [], more = false): Scripted => {
         return { message, token };
       },
       hear: async function* (token) {
-        const held = answers.get(token) ?? { deltas: [] };
+        const withheld = answers.get(token) ?? { deltas: [] };
         let text = "";
-        for (const delta of held.deltas) {
+        for (const delta of withheld.deltas) {
           text += delta;
           yield { type: "delta" as const, delta, text: "", failure: null };
           /** A frame between them, so a test can watch it arrive. */
@@ -68,7 +68,7 @@ export const scripted = (told: Turn[] = [], more = false): Scripted => {
           type: "ended" as const,
           delta: "",
           text,
-          failure: held.failure ?? null,
+          failure: withheld.failure ?? null,
         };
       },
       said: async ({ before }) => {

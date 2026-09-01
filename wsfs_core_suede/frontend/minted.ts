@@ -145,14 +145,14 @@ export type Reading = {
 
 export const reading = (instant: Date, minutes?: number | null): Reading => {
   const zoned = minutes !== undefined && minutes !== null;
-  const held = zoned ? minutes : offset(instant);
-  const local = new Date(instant.getTime() + held * MINUTE);
+  const minutesEast = zoned ? minutes : offset(instant);
+  const local = new Date(instant.getTime() + minutesEast * MINUTE);
   return {
     instant,
     local,
-    offset: held,
+    offset: minutesEast,
     zoned,
-    stamp: `${local.toISOString().slice(0, -1)}${written(held)}`,
+    stamp: `${local.toISOString().slice(0, -1)}${written(minutesEast)}`,
   };
 };
 

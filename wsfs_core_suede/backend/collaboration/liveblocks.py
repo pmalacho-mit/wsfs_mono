@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import os
 from typing import final
 
 import httpx
 
 
 API = "https://api.liveblocks.io"
+
+
+def api_base() -> str:
+    """Where the Liveblocks API lives, hosted or local.
+
+    `LIVEBLOCKS_BASE_URL` is the name the Liveblocks CLI exports for its own
+    dev server, so a host started under `liveblocks dev --cmd` points here
+    with nothing to configure. Read per call rather than at import, because a
+    test process sets it after this module is already loaded.
+    """
+    return os.environ.get("LIVEBLOCKS_BASE_URL") or API
 
 
 @final
@@ -43,7 +55,7 @@ class Liveblocks:
         headers = {**self._headers, **carrying.pop("headers", {})}
         async with httpx.AsyncClient(timeout=20) as client:
             return await client.request(
-                method, f"{API}{path}", headers=headers, **carrying
+                method, f"{api_base()}{path}", headers=headers, **carrying
             )
 
     async def _sent(self, method: str, path: str, **carrying) -> None:

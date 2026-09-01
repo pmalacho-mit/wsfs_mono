@@ -27,7 +27,7 @@
     Model as FileTreeModel,
   } from "$svelte/FileTree.svelte";
   import Shell from "$pytutor/Workspace.svelte";
-  import { drivable, solo } from "./harness/liveblocks";
+  import { baseUrl, drivable, solo } from "./harness/liveblocks";
   import { createClient } from "@liveblocks/client";
   import {
     alongside,
@@ -51,7 +51,10 @@
     tabs,
     until,
     type Client,
-  } from "./harness/testing.svelte";
+    ADA,
+  BACKEND,
+  asUser,
+} from "./harness/testing.svelte";
 
   /**
    * A room with nobody else in it, and a connection the test can answer for.
@@ -81,6 +84,7 @@
    * shell wired to it opens a file.
    */
   const live = createClient({
+    baseUrl: baseUrl(),
     authEndpoint: async (asked?: string) => {
       const answer = await fetch(
         `/liveblocks/token?rooms=${encodeURIComponent(asked ?? "")}`,
@@ -128,9 +132,9 @@
     await until(
       `${path} to be shared`,
       () =>
-        take().entries.find((one: any) => one.path === path)?.stage === "open",
+        take().entries.find((entry: any) => entry.path === path)?.stage === "open",
       () =>
-        JSON.stringify(take().entries.find((one: any) => one.path === path)),
+        JSON.stringify(take().entries.find((entry: any) => entry.path === path)),
       45_000,
     );
 
@@ -164,8 +168,8 @@
   const tall = { height: 500, style: { height: "500px" } };
 
   /** The text of a held file, or nothing at all -- binaries have none. */
-  const texted = (held: { kind: string; text?: string } | undefined) =>
-    held?.kind === "text" ? (held.text ?? "") : "";
+  const texted = (content: { kind: string; text?: string } | undefined) =>
+    content?.kind === "text" ? (content.text ?? "") : "";
 
   /**
    * What another client has for a path, or nothing if it has not heard of it.
@@ -216,8 +220,8 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("notes.md", "hello").settled;
-    await workspace.workspace.folder("src").settled;
+    await workspace.workspace.create("notes.md", "hello").response;
+    await workspace.workspace.folder("src").response;
 
     const { root } = await harness.definition("root");
     await until(
@@ -252,15 +256,18 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("anchor.md", "").settled;
+    // A FOLDER, because the two actions that make something are offered on a
+    // directory and on the root strip and nowhere else -- a file's menu
+    // withholds them on purpose. See `entryActions` in `FileTree.svelte`.
+    await workspace.workspace.folder("lessons").response;
     const { root } = await harness.definition("root");
     await until(
-      "the anchor is drawn",
-      () => !!rowFor(root, "anchor.md"),
+      "the folder is drawn",
+      () => !!rowFor(root, "lessons"),
       () => drawn(root).join(" | "),
     );
 
-    await menuOn(rowFor(root, "anchor.md")!);
+    await menuOn(rowFor(root, "lessons")!);
     await harness.withUserFocus(async (userEvent) => {
       await userEvent.click(action(root, "New file"));
       await userEvent.keyboard("greeting.py{Enter}");
@@ -268,10 +275,15 @@
 
     // The other client is the one that matters: it only ever sees what the
     // backend actually stored and streamed back.
-    await until("the other client sees it", holds(other, "greeting.py"), () =>
-      other.paths.join(" | "),
+    //
+    // INSIDE the folder, which is the half a file's menu could not promise:
+    // the new entry lands under the directory the menu was opened on.
+    await until(
+      "the other client sees it",
+      holds(other, "lessons/greeting.py"),
+      () => other.paths.join(" | "),
     );
-    harness.expect(other.paths).toContain("greeting.py");
+    harness.expect(other.paths).toContain("lessons/greeting.py");
     void harness.capture("png", tall);
   }}
 >
@@ -294,7 +306,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("before.md", "x").settled;
+    await workspace.workspace.create("before.md", "x").response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -337,7 +349,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("doomed.md", "x").settled;
+    await workspace.workspace.create("doomed.md", "x").response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -381,7 +393,7 @@
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
     // One entry, so there is plenty of empty tree below it to click on.
-    await workspace.workspace.create("ledger.md", "").settled;
+    await workspace.workspace.create("ledger.md", "").response;
     const { root } = await harness.definition("root");
     await until(
       "the first entry is drawn",
@@ -392,11 +404,11 @@
     await menuOnEmptySpace(region(root, "tree")!);
     // Captured with the menu open: the two actions an entry cannot offer.
     void harness.capture("png", tall);
-    harness.expect(action(root, "Add file")).toBeTruthy();
-    harness.expect(action(root, "Add folder")).toBeTruthy();
+    harness.expect(action(root, "New file")).toBeTruthy();
+    harness.expect(action(root, "New folder")).toBeTruthy();
 
     await harness.withUserFocus(async (userEvent) => {
-      await userEvent.click(action(root, "Add file"));
+      await userEvent.click(action(root, "New file"));
       await userEvent.keyboard("root-note.md{Enter}");
     });
 
@@ -427,7 +439,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("beacon.md", "").settled;
+    await workspace.workspace.create("beacon.md", "").response;
     const { root } = await harness.definition("root");
     await until(
       "the first entry is drawn",
@@ -437,7 +449,7 @@
 
     await menuOnEmptySpace(region(root, "tree")!);
     await harness.withUserFocus(async (userEvent) => {
-      await userEvent.click(action(root, "Add folder"));
+      await userEvent.click(action(root, "New folder"));
       await userEvent.keyboard("library{Enter}");
     });
 
@@ -468,8 +480,8 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("main.py", "print('hi')").settled;
-    await workspace.workspace.folder("shelf").settled;
+    await workspace.workspace.create("main.py", "print('hi')").response;
+    await workspace.workspace.folder("shelf").response;
 
     const { root } = await harness.definition("root");
     await until("the three regions", laidOut(root), () =>
@@ -505,6 +517,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -522,7 +536,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("essay.md", "hello").settled;
+    await workspace.workspace.create("essay.md", "hello").response;
 
     const { root } = await harness.definition("root");
     await until("the three regions", laidOut(root), () =>
@@ -561,6 +575,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -589,7 +605,7 @@
     // Right-click the empty explorer -> Add file.
     await menuOnEmptySpace(region(root, "tree")!);
     await harness.withUserFocus(async (userEvent) => {
-      await userEvent.click(action(root, "Add file"));
+      await userEvent.click(action(root, "New file"));
     });
 
     // The row is there, being named, and the box is EMPTY -- the user types a
@@ -649,6 +665,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -670,7 +688,7 @@
     const console = quiet();
     harness.onAbort(console.stop);
 
-    await workspace.workspace.create("kept.md", "").settled;
+    await workspace.workspace.create("kept.md", "").response;
     const { root } = await harness.definition("root");
     await until(
       "the first entry is drawn",
@@ -680,7 +698,7 @@
 
     await menuOnEmptySpace(region(root, "tree")!);
     await harness.withUserFocus(async (userEvent) => {
-      await userEvent.click(action(root, "Add file"));
+      await userEvent.click(action(root, "New file"));
       await userEvent.keyboard("{Enter}");
     });
 
@@ -701,6 +719,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -722,7 +742,7 @@
     const console = quiet();
     harness.onAbort(console.stop);
 
-    await workspace.workspace.create("taken.md", "first").settled;
+    await workspace.workspace.create("taken.md", "first").response;
     const { root } = await harness.definition("root");
     await until(
       "the first entry is drawn",
@@ -735,7 +755,7 @@
 
     await menuOnEmptySpace(region(root, "tree")!);
     await harness.withUserFocus(async (userEvent) => {
-      await userEvent.click(action(root, "Add file"));
+      await userEvent.click(action(root, "New file"));
       await userEvent.keyboard("taken.md{Enter}");
     });
 
@@ -755,6 +775,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -773,7 +795,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("draft.md", "before").settled;
+    await workspace.workspace.create("draft.md", "before").response;
     const { root } = await harness.definition("root");
     await until("the three regions", laidOut(root), () =>
       regions(root).join(" | "),
@@ -833,9 +855,13 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={liveRoom.entering}
-          onEditor={(editor) => ((p.editor = editor), { dispose: () => {} })}
+          editor={{
+            onEditor: (monaco) => ((p.editor = monaco), { dispose: () => {} }),
+          }}
         />
       {/if}
     </div>
@@ -852,9 +878,9 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("keep.md", "").settled;
-    await workspace.workspace.folder("box").settled;
-    await workspace.workspace.create("box/inner.md", "").settled;
+    await workspace.workspace.create("keep.md", "").response;
+    await workspace.workspace.folder("box").response;
+    await workspace.workspace.create("box/inner.md", "").response;
 
     const { root } = await harness.definition("root");
     await until(
@@ -883,7 +909,7 @@
     // Somebody else moves the folder. ONE change reaches this client -- the
     // folder's own name -- and the entry under it is carried by the tree,
     // because the tree is holding ids rather than re-deriving paths.
-    await other.workspace.move("box", "crate").settled;
+    await other.workspace.move("box", "crate").response;
 
     await until(
       "the folder followed",
@@ -920,7 +946,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("told.md", "x").settled;
+    await workspace.workspace.create("told.md", "x").response;
     const { root, tree } = await harness.definition("root", "tree");
     await until(
       "the file is drawn",
@@ -986,8 +1012,8 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("front.md", "one").settled;
-    await workspace.workspace.create("behind.md", "two").settled;
+    await workspace.workspace.create("front.md", "one").response;
+    await workspace.workspace.create("behind.md", "two").response;
 
     const { root } = await harness.definition("root");
     await until(
@@ -1055,6 +1081,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -1072,8 +1100,8 @@
     showing(pocket, workspace);
     harness.onAbort(() => workspace.dispose());
 
-    await workspace.workspace.create("seen.md", "one").settled;
-    await workspace.workspace.create("hidden.md", "two").settled;
+    await workspace.workspace.create("seen.md", "one").response;
+    await workspace.workspace.create("hidden.md", "two").response;
 
     const { root } = await harness.definition("root");
     await until("the three regions", laidOut(root), () =>
@@ -1124,6 +1152,8 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={room.entering}
         />
@@ -1142,7 +1172,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("hasty.md", "before").settled;
+    await workspace.workspace.create("hasty.md", "before").response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -1180,9 +1210,13 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={liveRoom.entering}
-          onEditor={(editor) => ((p.editor = editor), { dispose: () => {} })}
+          editor={{
+            onEditor: (monaco) => ((p.editor = monaco), { dispose: () => {} }),
+          }}
         />
       {/if}
     </div>
@@ -1199,7 +1233,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("leaving.md", "before").settled;
+    await workspace.workspace.create("leaving.md", "before").response;
     const { root } = await harness.definition("root");
     await until(
       "the file is drawn",
@@ -1224,7 +1258,7 @@
     typeInto(pocket.editor!, " after");
     await until(
       "it went dirty",
-      () => pocket.take!().entries.some((held: any) => held.dirty),
+      () => pocket.take!().entries.some((entry: any) => entry.dirty),
     );
     window.dispatchEvent(new Event("pagehide"));
 
@@ -1236,7 +1270,7 @@
      */
     harness
       .expect(
-        pocket.take!().entries.find((one: any) => one.path === "leaving.md")
+        pocket.take!().entries.find((entry: any) => entry.path === "leaving.md")
           .dirty,
       )
       .toBe(false);
@@ -1253,9 +1287,13 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={liveRoom.entering}
-          onEditor={(editor) => ((p.editor = editor), { dispose: () => {} })}
+          editor={{
+            onEditor: (monaco) => ((p.editor = monaco), { dispose: () => {} }),
+          }}
           onSnapshot={(take) => (p.take = take)}
         />
       {/if}
@@ -1273,7 +1311,7 @@
     showing(pocket, workspace);
     harness.onAbort(() => (workspace.dispose(), other.dispose()));
 
-    await workspace.workspace.create("draft.py", "start").settled;
+    await workspace.workspace.create("draft.py", "start").response;
     const { root, take } = await harness.definition("root", "take");
     await until(
       "the file is drawn",
@@ -1295,7 +1333,7 @@
 
     // Every token, not just the content one: this is what makes a snapshot
     // enough to rebuild the filesystem as it stood.
-    const before = take().entries.find((held: any) => held.path === "draft.py");
+    const before = take().entries.find((entry: any) => entry.path === "draft.py");
     harness
       .expect(Object.keys(before.versions).sort())
       .toEqual(["content", "deleted", "name", "parent"]);
@@ -1307,10 +1345,10 @@
 
     await until(
       "it went dirty",
-      () => take().entries.some((held: any) => held.dirty),
+      () => take().entries.some((entry: any) => entry.dirty),
       () =>
         JSON.stringify(
-          take().entries.find((one: any) => one.path === "draft.py"),
+          take().entries.find((entry: any) => entry.path === "draft.py"),
         ),
     );
 
@@ -1318,7 +1356,7 @@
     // carries what the user was looking at -- whose content version does not
     // exist yet, which is exactly why the transaction has to be named.
     const resolved = take({ resolveDirty: true }).entries.find(
-      (held: any) => held.path === "draft.py",
+      (entry: any) => entry.path === "draft.py",
     );
     if (resolved.dirty)
       throw new Error(`still dirty -- ${JSON.stringify(resolved)}`);
@@ -1333,20 +1371,24 @@
         JSON.stringify({
           other: heldBy(other, "draft.py"),
           resolved,
-          here: take().entries.find((one: any) => one.path === "draft.py"),
+          here: take().entries.find((entry: any) => entry.path === "draft.py"),
         }),
       15_000,
     );
-    harness.expect(take().entries.some((held: any) => held.dirty)).toBe(false);
+    harness.expect(take().entries.some((entry: any) => entry.dirty)).toBe(false);
   }}
 >
   {#snippet vest(p: Pocket)}
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={liveRoom.entering}
-          onEditor={(editor) => ((p.editor = editor), { dispose: () => {} })}
+          editor={{
+            onEditor: (monaco) => ((p.editor = monaco), { dispose: () => {} }),
+          }}
           onSnapshot={(take) => (p.take = take)}
         />
       {/if}
@@ -1405,8 +1447,10 @@
      */
     const SEED = 5;
     const ROUNDS = 18;
-    let held = SEED >>> 0;
-    const roll = () => ((held = (held * 1664525 + 1013904223) >>> 0), held / 0x100000000);
+    let state = SEED >>> 0;
+    const roll = () => (
+      (state = (state * 1664525 + 1013904223) >>> 0), state / 0x100000000
+    );
     const pick = <T,>(from: T[]): T => from[Math.floor(roll() * from.length)]!;
 
     const pocket = harness.set(new Pocket());
@@ -1439,7 +1483,7 @@
     ];
     const believed = new Map(files.map((path) => [path, `${path}\n`]));
     for (const path of files)
-      await workspace.workspace.create(path, believed.get(path)!).settled;
+      await workspace.workspace.create(path, believed.get(path)!).response;
 
     const { root } = await harness.definition("root");
     for (const path of files)
@@ -1505,20 +1549,20 @@
      * file and changing it; this is that pause, with a condition on it rather
      * than a number.
      */
-    const settled = async (round: number) => {
+    const waitUntilStored = async (round: number) => {
       if (open === undefined) return;
-      const held = open;
+      const openPath = open;
       await until(
-        `round ${round}: ${held} to settle`,
+        `round ${round}: ${openPath} to settle`,
         () => {
-          const one = pocket
+          const found = pocket
             .take?.()
-            .entries.find((each: any) => each.path === held);
-          return one !== undefined && !one.dirty && one.stage === "open";
+            .entries.find((entry: any) => entry.path === openPath);
+          return found !== undefined && !found.dirty && found.stage === "open";
         },
         () =>
           JSON.stringify(
-            pocket.take?.().entries.filter((each: any) => each.path === held),
+            pocket.take?.().entries.filter((entry: any) => entry.path === openPath),
           ),
         20_000,
       );
@@ -1534,14 +1578,14 @@
             got: heldBy(other, path),
             acted,
             mineSays: [...workspace.workspace.entries().values()]
-              .filter((one: any) => one.name === path)
-              .map((one: any) => one.content_version),
+              .filter((entry: any) => entry.name === path)
+              .map((entry: any) => entry.content_version),
             otherSays: [...other.workspace.entries().values()]
-              .filter((one: any) => one.name === path)
-              .map((one: any) => one.content_version),
+              .filter((entry: any) => entry.name === path)
+              .map((entry: any) => entry.content_version),
             shell: pocket
               .take?.()
-              .entries.filter((one: any) => one.path === path),
+              .entries.filter((entry: any) => entry.path === path),
           }),
         25_000,
       );
@@ -1625,7 +1669,7 @@
       acted.push(`${round}:${act}:${touched}`);
       pocket.opened = [...acted.slice(-6)];
       await andNobodyLostIt(touched!, round);
-      await settled(round);
+      await waitUntilStored(round);
     }
 
     // And at the very end, every file that was touched -- not just the last.
@@ -1637,9 +1681,13 @@
     <div class="stage" bind:this={p.root}>
       {#if p.workspace}
         <Shell
+          base={BACKEND}
+          authorize={asUser(ADA)}
           workspace={p.workspace.workspace}
           entering={liveRoom.entering}
-          onEditor={(editor) => ((p.editor = editor), { dispose: () => {} })}
+          editor={{
+            onEditor: (monaco) => ((p.editor = monaco), { dispose: () => {} }),
+          }}
           onSnapshot={(take) => (p.take = take)}
         />
       {/if}

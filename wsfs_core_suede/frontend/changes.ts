@@ -81,10 +81,10 @@ const TOKENS = {
 } as const satisfies Record<Property, keyof Metadata>;
 
 /**
- * The transaction responsible for what a property currently says: the queued
+ * The transaction that last set what a property currently says: the queued
  * one if an overlay is showing, and the property's own token otherwise.
  */
-const responsible = (
+const transactionFor = (
   entry: Metadata,
   overlaid: Overlaid,
   property: Property,
@@ -114,7 +114,7 @@ const says = (
       ? (entry.parent ?? null)
       : property === "deleted"
         ? entry.deleted === true
-        : responsible(entry, overlaid, "content");
+        : transactionFor(entry, overlaid, "content");
 
 const differ = (
   property: Property,
@@ -135,7 +135,7 @@ const retraction = (
   after: Effective,
   was: Metadata,
 ): Transaction | undefined => {
-  const spoke = responsible(was, before.overlaid, property);
+  const spoke = transactionFor(was, before.overlaid, property);
   if (spoke === null) return undefined;
   return before.queued.has(spoke) && !after.queued.has(spoke) ? spoke : undefined;
 };
@@ -150,7 +150,7 @@ const changed = (
 
   const attribution = (property: Property) => ({
     entry: now.id,
-    by: responsible(now, after.overlaid, property)!,
+    by: transactionFor(now, after.overlaid, property)!,
     ...(retraction(property, before, after, was) === undefined
       ? {}
       : { retracting: retraction(property, before, after, was) }),
@@ -192,7 +192,7 @@ export const between = (before: Effective, after: Effective): Change[] => {
 
   for (const [entry, was] of before.view) {
     if (after.view.has(entry)) continue;
-    const by = responsible(was, before.overlaid, "name")!;
+    const by = transactionFor(was, before.overlaid, "name")!;
     const retracting = before.queued.has(by) && !after.queued.has(by) ? by : undefined;
     gone.push({ entry, by, ...(retracting ? { retracting } : {}), kind: "vanished", was });
   }
@@ -202,7 +202,7 @@ export const between = (before: Effective, after: Effective): Change[] => {
     if (was === undefined) {
       arrived.push({
         entry,
-        by: responsible(now, after.overlaid, "name")!,
+        by: transactionFor(now, after.overlaid, "name")!,
         kind: "appeared",
         now,
       });

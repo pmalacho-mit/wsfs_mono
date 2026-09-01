@@ -67,10 +67,10 @@ async def test_the_deduping_rename_advances_the_name_token_past_the_create(api: 
     entry, born = new_id(), api.transaction()
     acknowledged(await api.create(entry, name="main.py", transaction=born))
 
-    settled = await meta(api, entry)
-    assert settled["name"] == "main (2).py"
-    assert settled["name_version"] != born
-    assert settled["parent_version"] == settled["deleted_version"] == born
+    metadata = await meta(api, entry)
+    assert metadata["name"] == "main (2).py"
+    assert metadata["name_version"] != born
+    assert metadata["parent_version"] == metadata["deleted_version"] == born
 
 
 async def test_a_dotfile_keeps_its_leading_dot_when_resolved(api: Api):

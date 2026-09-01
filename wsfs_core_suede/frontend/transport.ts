@@ -45,7 +45,7 @@ export type Transport = {
     options?: { keepalive?: boolean },
   ) => Promise<Response>;
   content: (workspace: Id, entry: Id, version?: Version) => Promise<Payload>;
-  store: (
+  uploadBytes: (
     workspace: Id,
     digest: string,
     bytes: Uint8Array,
@@ -61,7 +61,7 @@ export type Transport = {
    * calling them without the caller's authorisation. One door, one base URL,
    * one auth story.
    */
-  settleRoom: (workspace: Id, entry: Id) => Promise<Version | null>;
+  bringRoomUpToFile: (workspace: Id, entry: Id) => Promise<Version | null>;
   warmRoom: (workspace: Id, entry: Id) => Promise<void>;
   roomStored: (workspace: Id, entry: Id, version: Version) => Promise<void>;
   handOver: (workspace: Id, entry: Id, update: Uint8Array) => Promise<void>;
@@ -76,7 +76,7 @@ export type Transport = {
 
 type Response_ = globalThis.Response;
 
-const held = async (response: Response_): Promise<Payload> => {
+const payloadOf = async (response: Response_): Promise<Payload> => {
   const mime =
     response.headers.get("content-type") ?? "application/octet-stream";
   if (!mime.startsWith("application/json")) {
@@ -140,7 +140,7 @@ export const http = (base: string, authorize: Authorized): Transport => {
       await posted(`${workspaces(workspace)}/drafts/cleared`, { transactions });
     },
 
-    settleRoom: async (workspace, entry) =>
+    bringRoomUpToFile: async (workspace, entry) =>
       (
         await json<{ base: Version | null }>(
           await posted(`${workspaces(workspace)}/rooms/${entry}`, {}),
@@ -172,12 +172,12 @@ export const http = (base: string, authorize: Authorized): Transport => {
 
     content: async (workspace, entry, version) => {
       const query = version === undefined ? "" : `?content=${version}`;
-      return held(
+      return payloadOf(
         await send(`${workspaces(workspace)}/entries/${entry}/content${query}`),
       );
     },
 
-    store: async (workspace, digest, bytes, mime) => {
+    uploadBytes: async (workspace, digest, bytes, mime) => {
       await send(`${workspaces(workspace)}/blobs/${digest}`, {
         method: "PUT",
         headers: {

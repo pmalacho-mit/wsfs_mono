@@ -17,9 +17,9 @@ export { filesystem } from "./adapters/kernel";
 export { provider } from "./adapters/files";
 export type { FileProvider } from "./adapters/files";
 
-/** Monaco, as an editing surface. */
-export { monaco } from "./MonacoSurface.svelte";
-export { MonacoEditing } from "./monaco.svelte";
+/** Monaco, drawing one wsfs file. */
+export { default as MonacoEditor } from "./MonacoEditor.svelte";
+export { MonacoModel } from "./monaco.svelte";
 export type { EditorProps } from "./monaco.svelte";
 
 /**

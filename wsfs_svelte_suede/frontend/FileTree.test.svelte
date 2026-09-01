@@ -41,7 +41,7 @@
   const workspaceWith = (view: ReadonlyMap<string, Metadata>) => {
     const pending = () => new Promise<never>(() => {});
     const submitting = () =>
-      ({ transaction: "test", settled: pending() }) as never;
+      ({ transaction: "test", response: pending() }) as never;
     return {
       entries: () => view,
       index: () => indexOf(view),
@@ -52,7 +52,7 @@
       move: submitting,
       remove: submitting,
       room: {
-        settle: () => pending(),
+        bringRoomUpToFile: () => pending(),
         warm: () => pending(),
         stored: () => pending(),
         handOver: () => pending(),

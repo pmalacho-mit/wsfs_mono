@@ -79,10 +79,10 @@ export const refused = (response: Response): response is Extract<Response, { rej
  * outbox has to act on itself. What they mean could hardly be further apart --
  * a refusal is the system declining, a draft is this client asking.
  */
-export const kept = (response: Response) => !response.rejected && response.draft === true;
+export const isDraft = (response: Response) => !response.rejected && response.draft === true;
 
 /** Neither of which the stream will ever mention again. */
-export const settledHere = (response: Response) => refused(response) || kept(response);
+export const noStreamEventFollows = (response: Response) => refused(response) || isDraft(response);
 
 export const isFolder = (entry: Metadata) => entry.type === "folder";
 

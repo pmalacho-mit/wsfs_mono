@@ -460,7 +460,7 @@ async def placed_into(
     if prune:
         events.extend(await _pruned(submission, placed, current, wanted))
 
-    events.extend(await service.settle(submission))
+    events.extend(await service.resolve_name_collisions(submission))
     return placed, events
 
 
@@ -484,17 +484,17 @@ async def _pruned(
     the state `held_paths` has to walk around.
 
     A path that is KEPT keeps its ancestors: every folder a wanted path needs
-    is in the kept set too, so this can never delete a folder something above
+    is in `paths_to_keep` too, so this can never delete a folder something above
     still lives in.
 
     Nothing already touched above is reachable here, so the tokens read at the
     start are still this entry's -- which is what a delete has to present.
     """
-    kept = set(wanted) | set(folders_of(wanted))
-    deepest = sorted(current.items(), key=lambda held: len(held[0]), reverse=True)
+    paths_to_keep = set(wanted) | set(folders_of(wanted))
+    deepest = sorted(current.items(), key=lambda entry: len(entry[0]), reverse=True)
     events: list[Emitted] = []
     for path, node in deepest:
-        if path in kept:
+        if path in paths_to_keep:
             continue
         outcome = await service.adjudicate(
             submission,

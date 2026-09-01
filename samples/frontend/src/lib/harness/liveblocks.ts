@@ -157,6 +157,17 @@ export const alone = (liveblocks: Client = solo()): Enter =>
  *     const room = drivable();
  *     room.reaching(false);   // now this client is holding work nobody has
  */
+/**
+ * An alternative Liveblocks server, when the run was given one.
+ *
+ * `VITE_LIVEBLOCKS_BASE_URL` is the name the Liveblocks CLI exports for its
+ * own dev server, so `liveblocks dev --cmd` reaches this with nothing to
+ * configure. Undefined leaves `createClient` on the hosted service, which is
+ * what a run with a real key wants.
+ */
+export const baseUrl = (): string | undefined =>
+  import.meta.env.VITE_LIVEBLOCKS_BASE_URL || undefined;
+
 export const drivable = (liveblocks: Client = solo()) => {
   let reaching = true;
   let waiting: (() => void)[] = [];
@@ -174,7 +185,7 @@ export const drivable = (liveblocks: Client = solo()) => {
             : new Promise<void>((done) => waiting.push(done)),
         watch: (changed: () => void) => {
           watchers.push(changed);
-          return () => (watchers = watchers.filter((one) => one !== changed));
+          return () => (watchers = watchers.filter((watcher) => watcher !== changed));
         },
       }),
       leave: () => entered.leave(),
@@ -188,9 +199,9 @@ export const drivable = (liveblocks: Client = solo()) => {
       reaching = now;
       for (const changed of watchers) changed();
       if (!now) return;
-      const held = waiting;
+      const withheld = waiting;
       waiting = [];
-      for (const done of held) done();
+      for (const done of withheld) done();
     },
   };
 };

@@ -35,7 +35,7 @@ class Surface extends Edits {
     });
   }
 
-  says(change: Partial<Change> = {}) {
+  reportEdit(change: Partial<Change> = {}) {
     this.report({
       spans: [{ at: 0, removed: 0, inserted: "x" }],
       version: 1,
@@ -67,7 +67,7 @@ describe("the Yjs transaction origin", () => {
     elsewhere.getText("content").insert(0, "theirs");
 
     /** What the binding would report while that update was reaching the screen. */
-    doc.on("beforeTransaction", () => surface.says());
+    doc.on("beforeTransaction", () => surface.reportEdit());
     Y.applyUpdate(doc, Y.encodeStateAsUpdate(elsewhere));
 
     expect(surface.refused).toEqual(["remote"]);
@@ -80,7 +80,7 @@ describe("the Yjs transaction origin", () => {
     const surface = new Surface(model);
     surface.attach(text);
 
-    doc.on("beforeTransaction", () => surface.says());
+    doc.on("beforeTransaction", () => surface.reportEdit());
     /** The origin a binding driving THIS model presents. */
     doc.transact(() => text.insert(0, "mine"), {
       ytext: text,
@@ -96,7 +96,7 @@ describe("the Yjs transaction origin", () => {
     const surface = new Surface({});
     surface.attach(text);
 
-    doc.on("beforeTransaction", () => surface.says());
+    doc.on("beforeTransaction", () => surface.reportEdit());
     /** A local transaction that is not the binding's -- `become`, say. */
     doc.transact(() => text.insert(0, "carried in"));
 
@@ -105,7 +105,7 @@ describe("the Yjs transaction origin", () => {
 
   it("still attributes when there is no shared document at all", () => {
     const surface = new Surface({});
-    surface.says();
+    surface.reportEdit();
     expect(surface.seen).toHaveLength(1);
     /**
      * The person is still editing; their edits just are not going anywhere
@@ -118,7 +118,7 @@ describe("the Yjs transaction origin", () => {
     const { text } = shared();
     const surface = new Surface({});
     surface.attach(text);
-    surface.says();
+    surface.reportEdit();
     expect(surface.seen[0]?.shared).toBe(true);
   });
 });
@@ -131,14 +131,14 @@ describe("the surface's own signal", () => {
      * survivable the detector goes deaf.
      */
     const surface = new Surface({}, { did: "changed", reported: false });
-    surface.says();
+    surface.reportEdit();
     expect(surface.seen[0]?.reported).toBe(false);
     expect(surface.seen[0]?.did).toBe("changed");
   });
 
   it("can refuse a change the neutral half would have allowed", () => {
     const surface = new Surface({}, "assistant");
-    surface.says();
+    surface.reportEdit();
     expect(surface.refused).toEqual(["assistant"]);
   });
 
@@ -149,13 +149,13 @@ describe("the surface's own signal", () => {
      * on the event wins.
      */
     const surface = new Surface({}, "assistant");
-    surface.says({ undone: "undid" });
+    surface.reportEdit({ undone: "undid" });
     expect(surface.seen.map((edit) => edit.did)).toEqual(["undid"]);
   });
 
   it("is not consulted about a whole-document replacement", () => {
     const surface = new Surface({});
-    surface.says({ flushed: true });
+    surface.reportEdit({ flushed: true });
     expect(surface.refused).toEqual(["reset"]);
   });
 });
