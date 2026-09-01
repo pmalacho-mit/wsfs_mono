@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "dockview": "^8.1.0",
+    "svelte": "^5.43.5",
+    "typescript": "~5.9.3"
+  }
+}

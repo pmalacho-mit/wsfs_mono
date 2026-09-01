@@ -1,0 +1,56 @@
+name: wsfs-mono-tests
+
+services:
+  test-backend:
+    build:
+      context: ..
+      dockerfile: ./tests/Dockerfile
+    environment:
+      DB_HOST: test-db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres
+      # DELIBERATELY UNSET: no LIVEBLOCKS_SECRET_KEY. The sample host defaults
+      # to the in-process collaboration service without one, and the whole
+      # room suite runs against that. A key here would hide a regression in
+      # exactly the boundary this split exists to prove.
+    # Live source, so editing a file needs no rebuild. Read-only so the
+    # container can't drop __pycache__ / .pytest_cache into the working tree.
+    volumes:
+      - ../wsfs_core_suede:/app/wsfs_mono/wsfs_core_suede:ro
+      - ../wsfs_assistant_suede:/app/wsfs_mono/wsfs_assistant_suede:ro
+      - ../wsfs_pytutor_suede:/app/wsfs_mono/wsfs_pytutor_suede:ro
+      - ../sqlmodel_utils_suede:/app/wsfs_mono/sqlmodel_utils_suede:ro
+      - ../pytutor_llms_suede:/app/wsfs_mono/pytutor_llms_suede:ro
+      - ../tests:/app/wsfs_mono/tests:ro
+      - ../samples:/app/wsfs_mono/samples:ro
+    depends_on:
+      test-db:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  test-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    # The data is thrown away after every run, so keep it in RAM and drop the
+    # durability guarantees we aren't using.
+    tmpfs:
+      - /var/lib/postgresql/data
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+    healthcheck:
+      # -h forces a TCP check. During init postgres runs a temporary server on
+      # the unix socket only, and a plain `pg_isready` reports ready against it.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

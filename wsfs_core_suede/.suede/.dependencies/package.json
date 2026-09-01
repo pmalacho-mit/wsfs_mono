@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@liveblocks/client": "^3.24.1",
+    "@liveblocks/yjs": "^3.24.1",
+    "nanoid": "^5.1.6",
+    "uuid": "^14.0.2",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.27"
+  }
+}

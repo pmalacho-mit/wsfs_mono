@@ -1,0 +1,558 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "wsfs pytutor schema stub",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/wsfs/workspaces/{workspace_id}/progress": {
+      "post": {
+        "summary": "Progress",
+        "description": "Whether a student has got anywhere since a few minutes ago.\n\nNOT A QUESTION, and not part of anybody's conversation: no transcript\ngoes in and no turn comes out. It is one measurement, asked on a timer\nby the client that is watching somebody work -- which is why it does\nnot stream, does not take a message id, and is not recorded. What is\nrecorded is the episode, and only if the answer is no.\n\nAnswered synchronously because the caller has nobody waiting on it.",
+        "operationId": "progress_wsfs_workspaces__workspace_id__progress_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Judging"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Judged"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/study/episodes": {
+      "post": {
+        "summary": "Stuck Episode",
+        "description": "A student was detected as stuck, and what the protocol did about it.",
+        "operationId": "stuck_episode_wsfs_workspaces__workspace_id__study_episodes_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Detected"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/study/offers": {
+      "post": {
+        "summary": "Stuck Offer",
+        "description": "A student took a prompt that was offered to them.",
+        "operationId": "stuck_offer_wsfs_workspaces__workspace_id__study_offers_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Accepted"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/study/activity": {
+      "post": {
+        "summary": "Stuck Activity",
+        "description": "A batch of what a student did inside a post-episode window.",
+        "operationId": "stuck_activity_wsfs_workspaces__workspace_id__study_activity_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Recorded"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Accepted": {
+        "properties": {
+          "offer": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Offer"
+          },
+          "episode": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Episode"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "course_event": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Event"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "offer",
+          "episode",
+          "at"
+        ],
+        "title": "Accepted",
+        "description": "A student took the offer."
+      },
+      "Became": {
+        "type": "string",
+        "enum": [
+          "offered",
+          "silent",
+          "held back by the cooldown",
+          "held back by a post-episode window"
+        ],
+        "title": "Became",
+        "description": "What the protocol did with one detection.\n\nFOUR VALUES, NOT TWO. `offered` and `silent` are the randomized arms and\nthe ones an analysis compares; the other two are detections that were\nnever eligible, because a cooldown or a post-episode window was running.\nRecording them is what makes \"this student was stuck four times and heard\nabout it once\" different from \"this student was stuck once\"."
+      },
+      "Detected": {
+        "properties": {
+          "episode": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Episode"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/Rule"
+          },
+          "became": {
+            "$ref": "#/components/schemas/Became"
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Detail",
+            "default": ""
+          },
+          "course_event": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Event"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "cooldown": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Span"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Span"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "episode",
+          "at",
+          "rule",
+          "became"
+        ],
+        "title": "Detected",
+        "description": "One stuck episode, and the periods it opened.\n\nONE POST, UP TO THREE ROWS. The cooldown and the window are separate facts\nwith separate lives -- they are read back on their own and they belong to\ndifferent questions -- but they are not separate EVENTS: both are decided\nin the same instant as the episode, by the same coin. Sending them apart\nwould mean a client that managed one request and not the next left an\nepisode claiming a window that no row records."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Judged": {
+        "properties": {
+          "progressing": {
+            "type": "boolean",
+            "title": "Progressing"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "progressing"
+        ],
+        "title": "Judged"
+      },
+      "Judging": {
+        "properties": {
+          "goal": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Goal"
+          },
+          "before": {
+            "type": "string",
+            "maxLength": 200000,
+            "title": "Before",
+            "default": ""
+          },
+          "after": {
+            "type": "string",
+            "maxLength": 200000,
+            "title": "After",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal"
+        ],
+        "title": "Judging",
+        "description": "Two versions of one program, and what it was meant to do."
+      },
+      "Moment": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "kind": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Kind"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "at",
+          "kind"
+        ],
+        "title": "Moment",
+        "description": "One thing a student did inside a post-episode window.\n\nDELIBERATELY OPEN. The shape belongs to whatever produced it -- an editor\nedit, a panel becoming visible, a keystroke in the chat box -- and a server\nthat parsed them would have to be redeployed every time the client learned\nto notice one more thing. The same argument as `ExecutionRow.outputs`.\n\nTwo fields are not open, because the whole point of the window is when\nthings happened relative to each other: `at`, and what kind of thing it\nwas."
+      },
+      "Recorded": {
+        "properties": {
+          "episode": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Episode"
+          },
+          "moments": {
+            "items": {
+              "$ref": "#/components/schemas/Moment"
+            },
+            "type": "array",
+            "maxItems": 20000,
+            "title": "Moments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "episode"
+        ],
+        "title": "Recorded",
+        "description": "A batch of moments, flushed from one open window.\n\nA BATCH RATHER THAN AN EVENT, because a keystroke is not worth a request.\nEach moment carries its own timestamp, so when it was recorded stays a\nfact about the student even though when it arrived is a fact about the\nnetwork."
+      },
+      "Rule": {
+        "type": "string",
+        "enum": [
+          "the same error twice",
+          "idle",
+          "no progress"
+        ],
+        "title": "Rule",
+        "description": "Why a student looked stuck. One of the three rules, and no others."
+      },
+      "Span": {
+        "properties": {
+          "began": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Began"
+          },
+          "ends": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends"
+          }
+        },
+        "type": "object",
+        "required": [
+          "began",
+          "ends"
+        ],
+        "title": "Span",
+        "description": "A stretch of time whose end was known when it began.\n\nBoth ends are the CLIENT's, and both are sent, because the protocol\nprecalculates them: a cooldown is twenty minutes from the moment a prompt\nwas shown, and the setting that says twenty could be different next term.\nRecomputing `until` here from today's configuration would describe the\nserver's present rather than the student's past."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

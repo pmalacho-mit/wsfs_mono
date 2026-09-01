@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@lucide/svelte": "^1.33.0",
+    "ai": "^6.0.263",
+    "bits-ui": "^2.19.0",
+    "clsx": "^2.1.1",
+    "streamdown-svelte": "^3.0.6",
+    "svelte": "^5.43.5",
+    "tailwind-merge": "^3.6.0",
+    "tailwind-variants": "^3.3.1"
+  }
+}

@@ -1,0 +1,590 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "wsfs assistant schema stub",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/wsfs/workspaces/{workspace_id}/chat": {
+      "post": {
+        "summary": "Ask",
+        "description": "Put a question to the tutor, and say where to hear the answer.\n\nTWO CALLS, NOT ONE. Answering takes seconds and a request should not,\nso this records the question, starts the work and returns -- and the\nstream below attaches to work that is already under way. A client that\nnever attaches changes nothing: the answer is written down when it\nfinishes, because a person who asks and closes the tab has still\nasked.\n\nASKING TWICE IS ANSWERED ONCE. The message id is the client's, so a\nretried request finds its own question already here. It still gets a\ntoken, because the reason to retry is usually that the first answer\nnever arrived.",
+        "operationId": "ask_wsfs_workspaces__workspace_id__chat_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Asking"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asked"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Conversation",
+        "description": "This person's conversation here, newest first.\n\nScoped to the caller as well as the workspace: a workspace can have\nmore than one person in it, and what somebody asked a tutor is theirs.",
+        "operationId": "conversation_wsfs_workspaces__workspace_id__chat_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/chat/stream": {
+      "get": {
+        "summary": "Hear",
+        "description": "The answer, as it is written.\n\nThe token names a generation running in this process rather than a\ndurable fact, so it is not spent by being read: a page that reloaded\nmid-answer picks the same one up again. What retires it is the answer\nbeing old, not somebody having heard it.",
+        "operationId": "hear_wsfs_workspaces__workspace_id__chat_stream_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One `data:` line per delta, then one saying it ended. Declared so a client can be generated against it.",
+            "content": {
+              "text/event-stream": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Answering"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Answering": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "delta",
+              "ended"
+            ],
+            "title": "Type"
+          },
+          "delta": {
+            "type": "string",
+            "title": "Delta",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Answering",
+        "description": "One line of the answer stream.\n\nTWO KINDS, and the second is not a courtesy. A delta is a piece; `ended`\ncarries the whole text and whatever went wrong, so a client that joined\nlate, missed a frame, or wants to check what it assembled has the answer\nitself rather than only the pieces of it."
+      },
+      "Asked": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Message"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "token"
+        ],
+        "title": "Asked",
+        "description": "Where to listen for the answer.\n\nThe message id comes back too, though the client minted it: a client that\nasked twice is told which question this is the answer to, rather than\nhaving to assume."
+      },
+      "Asking": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Message"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 32000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "attached": {
+            "items": {
+              "$ref": "#/components/schemas/Attaching"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Attached"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "system": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "text"
+        ],
+        "title": "Asking",
+        "description": "A question, and everything needed to answer it in context."
+      },
+      "Attached": {
+        "properties": {
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "executions": {
+            "items": {
+              "$ref": "#/components/schemas/Executed"
+            },
+            "type": "array",
+            "title": "Executions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry"
+        ],
+        "title": "Attached"
+      },
+      "Attaching": {
+        "properties": {
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "executions": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Executions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry"
+        ],
+        "title": "Attaching",
+        "description": "One file put in front of the tutor, and which of its runs came too."
+      },
+      "Executed": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "snapshot": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Snapshot"
+          },
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Occurrence"
+          },
+          "outputs": {
+            "items": {},
+            "type": "array",
+            "title": "Outputs"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "snapshot",
+          "entry",
+          "at",
+          "outputs",
+          "ok"
+        ],
+        "title": "Executed",
+        "description": "One recorded run, as it is read back."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Occurrence": {
+        "properties": {
+          "minted": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minted"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "accepted": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "Occurrence",
+        "description": "When one transaction happened, in both clocks that saw it.\n\nTwo clocks because they answer different questions and disagree for honest\nreasons. `minted` is the client's, and it is when the USER acted -- which,\nafter a week offline, is the only one that means anything to them. `accepted`\nis this server's, and it is when the change entered the workspace and became\nsomething other clients could see. An offline session makes the gap between\nthem days wide, and neither number is the other's approximation."
+      },
+      "Transcript": {
+        "properties": {
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/Turn"
+            },
+            "type": "array",
+            "title": "Turns"
+          },
+          "more": {
+            "type": "boolean",
+            "title": "More"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turns",
+          "more"
+        ],
+        "title": "Transcript"
+      },
+      "Turn": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Message"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Occurrence"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "attached": {
+            "items": {
+              "$ref": "#/components/schemas/Attached"
+            },
+            "type": "array",
+            "title": "Attached"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "at",
+          "text"
+        ],
+        "title": "Turn",
+        "description": "One exchange, as the panel reads it back."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+name: wsfs-sample
+
+# The sample host, served for a browser or a benchmark.
+#
+#   docker compose -f samples/compose.yml up -d --build
+#   WSFS_BACKEND=http://localhost:8099 npx vitest run performance
+#
+# ONE replica: one process per workspace is what the controller rests on.
+#
+# Neither service is on a network of its own, and that is deliberate. Compose
+# creates one per project, and the browser-test driver finds the devcontainer's
+# network by elimination -- a second bridge makes that ambiguous and the report
+# refuses to start before it runs anything. So the database publishes a port on
+# the default bridge and the backend shares the host's namespace to reach it.
+
+services:
+  sample-backend:
+    build:
+      context: ..
+      dockerfile: ./tests/Dockerfile
+    command: ["python", "-m", "wsfs_suede.samples.backend.serve"]
+    working_dir: /app
+    network_mode: host
+    environment:
+      DB_HOST: 127.0.0.1
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres
+      PYTHONPATH: /app
+      PORT: 8099
+      # Minted into per-user room tokens by /liveblocks/token. Never reaches a
+      # browser. The value here is a placeholder the developer's proxy swaps
+      # for the real key on the way out; a real deployment sets the real one.
+      LIVEBLOCKS_SECRET_KEY: LIVEBLOCKS__SECRET__KEY
+    # The model's key, from the developer's own `.env` -- which is gitignored,
+    # and read at RUN time rather than copied into the image, so a key never
+    # lands in a layer anybody could push. Optional: with no file and no key
+    # the sample serves a tutor that says it is not wired to a model, which is
+    # what keeps the browser suite runnable without one.
+    env_file:
+      - path: ../.env
+        required: false
+    # Live source, so swapping revisions needs a restart rather than a rebuild
+    # -- which is what makes a before/after measurement the same image. Point
+    # WSFS_RELEASE at another checkout to serve it instead.
+    volumes:
+      - ${WSFS_RELEASE:-../release}:/app/wsfs_suede/release:ro
+      - ../wsfs_suede__sqlmodel_utils_suede:/app/wsfs_suede/wsfs_suede__sqlmodel_utils_suede:ro
+      - ../wsfs_suede__pytutor_llms_suede:/app/wsfs_suede/wsfs_suede__pytutor_llms_suede:ro
+      - ../samples:/app/wsfs_suede/samples:ro
+    depends_on:
+      sample-db:
+        condition: service_healthy
+
+  sample-db:
+    image: postgres:16
+    network_mode: bridge
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    tmpfs:
+      - /var/lib/postgresql/data
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
+      interval: 1s
+      timeout: 2s
+      retries: 30

@@ -1,0 +1,8 @@
+asyncpg==0.31.0
+fast_diff_match_patch==2.1.0
+fastapi==0.141.1
+httpx==0.28.1
+inflection==0.5.1
+pycrdt==0.14.3
+sqlmodel==0.0.39
+uvicorn==0.52.4

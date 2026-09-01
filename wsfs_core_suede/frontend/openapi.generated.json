@@ -1,0 +1,2545 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "wsfs schema stub",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/wsfs/workspaces/{workspace_id}/initialize": {
+      "post": {
+        "summary": "Initialize",
+        "operationId": "initialize_wsfs_workspaces__workspace_id__initialize_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitializeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InitializeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/transactions": {
+      "post": {
+        "summary": "Transact",
+        "operationId": "transact_wsfs_workspaces__workspace_id__transactions_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Create"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Delete"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Rename"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Reparent"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Move"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Write"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Snapshot"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Execute"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/files": {
+      "post": {
+        "summary": "Add Files",
+        "description": "Add these files, at these paths, with this text.\n\nTHE ADDITIVE HALF of `place`, and the only half with a URL. A client\nlogged in on behalf of a user putting files into that user's workspace\nis an ordinary thing to mean, and having to walk the tree, mint an id\nper folder and chain CAS tokens by hand to say it is a tax on saying\nsomething harmless. What it may NOT mean is the rest of `place`:\n`overwrite=False` is passed here and not read from the body, and\n`prune` has no field at all -- so nothing arriving over this route can\nchange text it did not write or delete anything whatsoever.\n\nA path already holding something else is refused, per path, rather\nthan written over, and everything that had nowhere to conflict still\nlands. That is the same shape every other refusal in this package has\nand the reason this answers 200 with a list rather than 409 with\nnothing: one occupied path is a fact about the workspace, not a\nmalformed call.\n\nREPEATABLE, like the function behind it. A path already holding\nexactly this text is `unchanged` -- no transaction, no event, no\nflicker for anybody with the file open -- so a client that cannot tell\nwhether its last attempt landed can simply send it again.\n\n400, and only 400, for `place.Unusable`: a path that is not a path,\none path spelled two ways, or one path asked to be both a file and the\nfolder above another. That is the CALL being wrong, it is caught\nbefore anything is written, and a workspace half-described by it would\nbe a state nobody asked for.",
+        "operationId": "add_files_wsfs_workspaces__workspace_id__files_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlacementRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Placed"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/blobs/{digest}": {
+      "put": {
+        "summary": "Store",
+        "description": "Under a workspace because that is the only question a host's\n`authorize` can answer -- which is also why the id appears in the path\nand not in this signature: the host's dependency is what reads it. The\nbytes themselves are stored once for the deployment and named by their\nhash -- two workspaces holding the same file hold one copy -- but\nsomebody who may reach no workspace at all may not fill the\ndeployment's disk either.",
+        "operationId": "store_wsfs_workspaces__workspace_id__blobs__digest__put",
+        "parameters": [
+          {
+            "name": "digest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Digest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Fetch Blob",
+        "description": "Served only to a workspace that WRITES these bytes somewhere.\n\nA hash is not a secret: it travels in `X-Content-Hash`, in every\n`BinaryBody`, and through any client that ever held the file. So\nknowing one buys nothing here -- the caller has to be someone the host\nlets into a workspace whose own content log names it.",
+        "operationId": "fetch_blob_wsfs_workspaces__workspace_id__blobs__digest__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "digest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Digest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/entries/{entry_id}/content": {
+      "get": {
+        "summary": "Content",
+        "description": "Omitting `content` asks for the entry's newest.",
+        "operationId": "content_wsfs_workspaces__workspace_id__entries__entry_id__content_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "content",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/entries/{entry_id}/history": {
+      "get": {
+        "summary": "History",
+        "description": "What this file has said, newest first.\n\nScoped to the CALLER for everything except what the workspace\naccepted: a draft is work that reached nobody, so the author is the\nonly person who has ever seen it, and listing somebody else's would\npublish typing they never shared.\n\nPaged by `before` rather than by an offset, because rows arrive while\nsomebody is reading and an offset would show one twice or skip one.",
+        "operationId": "history_wsfs_workspaces__workspace_id__entries__entry_id__history_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/entries/{entry_id}/executions": {
+      "get": {
+        "summary": "Executions",
+        "description": "What running this file has produced, newest first.",
+        "operationId": "executions_wsfs_workspaces__workspace_id__entries__entry_id__executions_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Executions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/snapshots/{snapshot_id}": {
+      "get": {
+        "summary": "Snapshot Taken",
+        "description": "Which entries a snapshot named, and at which versions.",
+        "operationId": "snapshot_taken_wsfs_workspaces__workspace_id__snapshots__snapshot_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotTaken"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/drafts": {
+      "get": {
+        "summary": "Stranded Drafts",
+        "description": "Work that is still only where it was typed.\n\nUncleared drafts, which is the one question a client cannot answer for\nitself: the case worth reporting is the machine that never came back,\nand its own record of what it was holding went with it.",
+        "operationId": "stranded_drafts_wsfs_workspaces__workspace_id__drafts_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrandedDrafts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/drafts/cleared": {
+      "post": {
+        "summary": "Clear Drafts",
+        "description": "These drafts' work has since reached everybody else.\n\nCleared, not deleted. The row is still what that client had, and a\nsnapshot may still name it.",
+        "operationId": "clear_drafts_wsfs_workspaces__workspace_id__drafts_cleared_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Clearing"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/reconstruction": {
+      "post": {
+        "summary": "Reconstruction",
+        "description": "What a client was looking at, from the transactions it wrote down.\n\nA POST because the question is a list, and a long one -- a snapshot of\na whole workspace names four tokens per entry. Nothing is mutated.\n\nThe work is `reconstruct.reconstructed`, which anything inside this\nprocess can call directly. An assistant assembling the files a user\ncould see when they asked a question wants the same answer this\nreturns, and should not have to make an HTTP request to itself for it.",
+        "operationId": "reconstruction_wsfs_workspaces__workspace_id__reconstruction_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconstructionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconstructionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/stream": {
+      "get": {
+        "summary": "Events",
+        "description": "The token is the credential here -- EventSource cannot carry a\nheader, which is why it is single-use and position-bound.",
+        "operationId": "events_wsfs_workspaces__workspace_id__stream_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One `data:` line per event, in position order, and a `: hb` comment every heartbeat. Declared here because this payload is what a client's confirmed map is mutated by -- an undeclared one could not be generated.",
+            "content": {
+              "text/event-stream": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/rooms/{entry_id}": {
+      "post": {
+        "summary": "Ensure Room",
+        "description": "Make this entry's room exist and say what the file says.\n\nIdempotent, and the only way a room is ever filled. Free when there is\nnothing to do, which is the common case by a wide margin: the common\nreason to ask is that somebody just saved and every other client with\nthe file open heard about it.\n\nA null base is not a failure. It is what a file that is not text a\nroom can hold answers -- bytes written over it, or a deletion -- and\nthe caller's own read is the first moment anybody could know that.",
+        "operationId": "ensure_room_wsfs_workspaces__workspace_id__rooms__entry_id__post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomStanding"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/rooms/{entry_id}/warm": {
+      "post": {
+        "summary": "Warm Room",
+        "description": "Fill this room now, so that opening the file later is instant.\n\nCreating a room, asking what it holds and filling it is three calls to\nthe collaboration server and takes a second or two. Somebody opening a\nfile waits for all of it, because an editor bound to a room that has\nnot been filled shows an empty document and then saves that over the\nreal file.\n\nNobody is waiting when a file is CREATED, so that is where this\nbelongs -- whether a person made it or a workspace was cloned for one.\nAnswered before the work starts, because the answer is not the point.",
+        "operationId": "warm_room_wsfs_workspaces__workspace_id__rooms__entry_id__warm_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/rooms/{entry_id}/stored": {
+      "post": {
+        "summary": "Room Stored",
+        "description": "A member of this room wrote the file.\n\nThe cheap half of the whole design: this host is told where the file\nnow stands instead of every client that hears about the write asking\nthe collaboration server what the room contains. One POST here, and\neverybody else's settle finds nothing to do.",
+        "operationId": "room_stored_wsfs_workspaces__workspace_id__rooms__entry_id__stored_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomStored"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wsfs/workspaces/{workspace_id}/rooms/{entry_id}/updates": {
+      "post": {
+        "summary": "Hand Over",
+        "description": "Put a client's own document update into the room for it.\n\nThe one thing a client cannot do for itself when it can reach this\nhost and not the collaboration server. Its work is already kept as a\ndraft and cannot be lost -- but nobody else would see it until that\nconnection came back, which can be a long time and is not a good\nenough reason.\n\nFORWARDED, NOT INTERPRETED. The update carries its own identities, so\nit merges exactly once however many routes it arrives by, including\nthis client's own connection when that returns.\n\nSized like a blob, and for the same reason: this is the one route here\nwhose body a caller chooses the length of.",
+        "operationId": "hand_over_wsfs_workspaces__workspace_id__rooms__entry_id__updates_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BinaryBody": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "binary",
+            "title": "Type",
+            "default": "binary"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hash",
+          "size",
+          "mime"
+        ],
+        "title": "BinaryBody"
+      },
+      "Change": {
+        "type": "string",
+        "enum": [
+          "created",
+          "written",
+          "unchanged",
+          "deleted"
+        ],
+        "title": "Change",
+        "description": "What one path needed doing to it.\n\nUNCHANGED is the one worth having a word for. It is not a failure and not\na no-op the caller should ignore -- it is this function's whole claim to\nbeing safe to run repeatedly, and a caller watching for churn wants to see\nthat the second run was all of these."
+      },
+      "Clearing": {
+        "properties": {
+          "transactions": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Transactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transactions"
+        ],
+        "title": "Clearing",
+        "description": "Drafts whose work has since reached everybody else."
+      },
+      "Create": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "create",
+            "title": "Op",
+            "default": "create"
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TextBody"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BinaryBody"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "type",
+                  "mapping": {
+                    "binary": "#/components/schemas/BinaryBody",
+                    "text": "#/components/schemas/TextBody"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "type",
+          "name",
+          "content"
+        ],
+        "title": "Create"
+      },
+      "Delete": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "delete",
+            "title": "Op",
+            "default": "delete"
+          },
+          "seen": {
+            "$ref": "#/components/schemas/Seen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "seen"
+        ],
+        "title": "Delete"
+      },
+      "Event": {
+        "type": "string",
+        "enum": [
+          "create",
+          "name",
+          "parent",
+          "move",
+          "delete",
+          "write"
+        ],
+        "title": "Event"
+      },
+      "Execute": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "execute",
+            "title": "Op",
+            "default": "execute"
+          },
+          "snapshot": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Snapshot"
+          },
+          "outputs": {
+            "items": {},
+            "type": "array",
+            "title": "Outputs"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "snapshot"
+        ],
+        "title": "Execute",
+        "description": "One run of one file, against a snapshot, and what came out.\n\nRefused when the snapshot is unknown, because output whose subject cannot\nbe named is not evidence of anything."
+      },
+      "Executed": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "snapshot": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Snapshot"
+          },
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Occurrence"
+          },
+          "outputs": {
+            "items": {},
+            "type": "array",
+            "title": "Outputs"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "snapshot",
+          "entry",
+          "at",
+          "outputs",
+          "ok"
+        ],
+        "title": "Executed",
+        "description": "One recorded run, as it is read back."
+      },
+      "Executions": {
+        "properties": {
+          "executions": {
+            "items": {
+              "$ref": "#/components/schemas/Executed"
+            },
+            "type": "array",
+            "title": "Executions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executions"
+        ],
+        "title": "Executions"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "History": {
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/Version"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "more": {
+            "type": "boolean",
+            "title": "More"
+          }
+        },
+        "type": "object",
+        "required": [
+          "versions",
+          "more"
+        ],
+        "title": "History"
+      },
+      "InitializeRequest": {
+        "properties": {
+          "outbox": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Create"
+                },
+                {
+                  "$ref": "#/components/schemas/Delete"
+                },
+                {
+                  "$ref": "#/components/schemas/Rename"
+                },
+                {
+                  "$ref": "#/components/schemas/Reparent"
+                },
+                {
+                  "$ref": "#/components/schemas/Move"
+                },
+                {
+                  "$ref": "#/components/schemas/Write"
+                },
+                {
+                  "$ref": "#/components/schemas/Snapshot"
+                },
+                {
+                  "$ref": "#/components/schemas/Execute"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "op",
+                "mapping": {
+                  "create": "#/components/schemas/Create",
+                  "delete": "#/components/schemas/Delete",
+                  "execute": "#/components/schemas/Execute",
+                  "move": "#/components/schemas/Move",
+                  "rename": "#/components/schemas/Rename",
+                  "reparent": "#/components/schemas/Reparent",
+                  "snapshot": "#/components/schemas/Snapshot",
+                  "write": "#/components/schemas/Write"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Outbox"
+          }
+        },
+        "type": "object",
+        "title": "InitializeRequest"
+      },
+      "InitializeResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "applied": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Applied"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Rejection"
+            },
+            "type": "array",
+            "title": "Rejected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "entries",
+          "applied",
+          "rejected"
+        ],
+        "title": "InitializeResponse",
+        "description": "DEPARTURE: `applied` is transaction ids. The contract echoes back the\nfull requests, which the client already holds and evicts by id."
+      },
+      "Kind": {
+        "type": "string",
+        "enum": [
+          "text",
+          "binary"
+        ],
+        "title": "Kind"
+      },
+      "Metadata": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "deleted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted"
+          },
+          "name_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Name Version"
+          },
+          "parent_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parent Version"
+          },
+          "deleted_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Deleted Version"
+          },
+          "content_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Version"
+          },
+          "modified": {
+            "$ref": "#/components/schemas/Occurrence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "name",
+          "name_version",
+          "parent_version",
+          "deleted_version",
+          "modified"
+        ],
+        "title": "Metadata",
+        "description": "Pure namespace, plus the four tokens the next mutation must present.\n\nNo content descriptor ever appears here: `content_version` names the write\nto fetch, not what it holds."
+      },
+      "Move": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "move",
+            "title": "Op",
+            "default": "move"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "name_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Name Version"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "parent_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parent Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "name",
+          "name_version",
+          "parent_version"
+        ],
+        "title": "Move",
+        "description": "A rename and a reparent as one transaction.\n\nA filesystem `mv` changes where an entry lives and what it is called at\nonce, and doing that as two transactions can half-succeed: the rename\nlands, the reparent is refused, and the entry ends up somewhere nobody\nasked for. This presents both tokens and takes both positions or neither."
+      },
+      "Moved": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Moved",
+        "description": "Where an entry went, and what it is called now."
+      },
+      "NotPlaced": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "reason"
+        ],
+        "title": "NotPlaced",
+        "description": "One path the workspace would not have, and why.\n\nNAMED BY THE PATH the caller gave, because that is the only name the\ncaller has for it -- an entry id would be an answer to a question nobody\nasked."
+      },
+      "Occurrence": {
+        "properties": {
+          "minted": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minted"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "accepted": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "Occurrence",
+        "description": "When one transaction happened, in both clocks that saw it.\n\nTwo clocks because they answer different questions and disagree for honest\nreasons. `minted` is the client's, and it is when the USER acted -- which,\nafter a week offline, is the only one that means anything to them. `accepted`\nis this server's, and it is when the change entered the workspace and became\nsomething other clients could see. An offline session makes the gap between\nthem days wide, and neither number is the other's approximation."
+      },
+      "Placed": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/PlacedEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/NotPlaced"
+            },
+            "type": "array",
+            "title": "Refused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace"
+        ],
+        "title": "Placed",
+        "description": "What one call did, path by path."
+      },
+      "PlacedEntry": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type"
+          },
+          "change": {
+            "$ref": "#/components/schemas/Change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "entry",
+          "type",
+          "change"
+        ],
+        "title": "PlacedEntry"
+      },
+      "PlacementRequest": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 1000,
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "title": "PlacementRequest",
+        "description": "Paths, and the text each should hold.\n\nNO `prune`, and no way to ask for one. Deleting everything a body did not\nname is a thing a host may mean and a client may not, so it stays where\nthe host is -- an argument to the in-process `Mounted.place`, never a\nfield on the wire. See `PlaceFiles`."
+      },
+      "Reconstructed": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "deleted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TextBody"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BinaryBody"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "type",
+                  "mapping": {
+                    "binary": "#/components/schemas/BinaryBody",
+                    "text": "#/components/schemas/TextBody"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "unresolved": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unresolved",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Reconstructed",
+        "description": "What those transactions said -- whichever way each of them went.\n\nNothing here says whether a transaction was accepted. That is deliberate:\nthe question this answers is what the USER WAS SEEING, and a client shows\nits own queued work before the server has ruled on it. A transaction later\nrefused still described the screen at the moment it was taken."
+      },
+      "ReconstructionRequest": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Versions"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "ReconstructionRequest"
+      },
+      "ReconstructionResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Reconstructed"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "ReconstructionResponse"
+      },
+      "Rejection": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "reason"
+        ],
+        "title": "Rejection"
+      },
+      "Rename": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "rename",
+            "title": "Op",
+            "default": "rename"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "name_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Name Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "name",
+          "name_version"
+        ],
+        "title": "Rename"
+      },
+      "Reparent": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "reparent",
+            "title": "Op",
+            "default": "reparent"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "parent_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parent Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "parent_version"
+        ],
+        "title": "Reparent"
+      },
+      "RoomStanding": {
+        "properties": {
+          "base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base"
+        ],
+        "title": "RoomStanding",
+        "description": "Where a room's text stands, as this host remembers it."
+      },
+      "RoomStored": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "RoomStored",
+        "description": "A member of this room wrote the file.\n\nTold rather than discovered: the room already holds the text, so the only\nthing that changed is where this host believes it stands. Knowing that is\nwhat makes every other client's settle cost nothing."
+      },
+      "Seen": {
+        "properties": {
+          "name_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Name Version"
+          },
+          "parent_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parent Version"
+          },
+          "deleted_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Deleted Version"
+          },
+          "content_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name_version",
+          "parent_version",
+          "deleted_version",
+          "content_version"
+        ],
+        "title": "Seen",
+        "description": "Every token of the entry a delete was looking at.\n\nDelete is the destructive operation, and the question worth asking is not\n\"has the deleted flag moved\" -- it almost never has -- but \"is this still\nthe thing I was told to destroy\"."
+      },
+      "Seen_": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Name Version"
+          },
+          "parent_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parent Version"
+          },
+          "deleted_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Deleted Version"
+          },
+          "content_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name_version",
+          "parent_version",
+          "deleted_version"
+        ],
+        "title": "Seen_",
+        "description": "One entry as a snapshot found it: the four tokens that ARE the entry."
+      },
+      "Snapshot": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "snapshot",
+            "title": "Op",
+            "default": "snapshot"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Seen_"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "entries"
+        ],
+        "title": "Snapshot",
+        "description": "A claim that the workspace looked like this.\n\nNOT A MUTATION. It changes nothing about any entry, so it presents no\ntoken, cannot conflict, and is not in the event stream. What it can be\nrefused for is naming a version that was never issued -- a claim about a\nstate that never existed is not worth keeping.\n\n`id` is inherited and unused: a snapshot is about the workspace rather\nthan about one entry. It carries the transaction's own id so that dedup,\nthe outbox and `utc_offset` all work exactly as they do for everything\nelse."
+      },
+      "SnapshotEntry": {
+        "properties": {
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "name_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Name Version"
+          },
+          "parent_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parent Version"
+          },
+          "deleted_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Deleted Version"
+          },
+          "content_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry",
+          "name_version",
+          "parent_version",
+          "deleted_version"
+        ],
+        "title": "SnapshotEntry"
+      },
+      "SnapshotTaken": {
+        "properties": {
+          "snapshot": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Snapshot"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot",
+          "entries"
+        ],
+        "title": "SnapshotTaken"
+      },
+      "Standing": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "draft",
+          "refused"
+        ],
+        "title": "Standing",
+        "description": "Where one version of a file stands.\n\nThree, not two, because a draft is neither of the others: not what the\nworkspace holds, and not the system declining -- it is a client saying it\ncould not share this yet. Telling a user their own caution was a refusal\nwould report it as a failure."
+      },
+      "Stranded": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "entry": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "entry",
+          "user_id",
+          "at"
+        ],
+        "title": "Stranded",
+        "description": "A draft whose work is still only where it was typed."
+      },
+      "StrandedDrafts": {
+        "properties": {
+          "drafts": {
+            "items": {
+              "$ref": "#/components/schemas/Stranded"
+            },
+            "type": "array",
+            "title": "Drafts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drafts"
+        ],
+        "title": "StrandedDrafts",
+        "description": "What one client had and nobody else ever got.\n\nThe question drafts exist to answer. A machine that never comes back\ncannot report its own, which is why the flag is the server's."
+      },
+      "StreamEvent": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Metadata"
+              },
+              {
+                "$ref": "#/components/schemas/Moved"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Occurrence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "transaction",
+          "at"
+        ],
+        "title": "StreamEvent",
+        "description": "DEPARTURE: a create's metadata rides in `value`, as every other event's\npayload does. The contract spreads it over the event, where its `type`\n(\"file\"/\"folder\") is shadowed by the event's own `type` (\"create\") and the\nclient can no longer tell a file from a folder.\n\n`transaction` does the job the old `version` field did as well: it is the\nid of the transaction this event announces, which IS the new token for the\nproperty it changed. On an event for property P, set the value and set P's\ntoken to `transaction`."
+      },
+      "TextBody": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type",
+            "default": "text"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "TextBody"
+      },
+      "Type": {
+        "type": "string",
+        "enum": [
+          "file",
+          "folder"
+        ],
+        "title": "Type"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Version": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Occurrence"
+          },
+          "standing": {
+            "$ref": "#/components/schemas/Standing"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "at",
+          "standing",
+          "kind"
+        ],
+        "title": "Version",
+        "description": "One thing this file has said, and where that stands."
+      },
+      "Versions": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Version"
+          },
+          "parent_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Version"
+          },
+          "deleted_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted Version"
+          },
+          "content_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Versions",
+        "description": "One entry, at the transactions a client was looking at.\n\nEvery field but `id` is optional so that a caller can ask about as little\nas it knows. A client replicating a whole filesystem sends all four; one\nasking only what a file held sends `content_version` alone."
+      },
+      "Write": {
+        "properties": {
+          "transaction": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Transaction"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1439.0,
+                "minimum": -1439.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "op": {
+            "type": "string",
+            "const": "write",
+            "title": "Op",
+            "default": "write"
+          },
+          "content_version": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Content Version"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextBody"
+              },
+              {
+                "$ref": "#/components/schemas/BinaryBody"
+              }
+            ],
+            "title": "Content",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "binary": "#/components/schemas/BinaryBody",
+                "text": "#/components/schemas/TextBody"
+              }
+            }
+          },
+          "draft": {
+            "type": "boolean",
+            "title": "Draft",
+            "default": false
+          },
+          "predecessor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predecessor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction",
+          "id",
+          "content_version",
+          "content"
+        ],
+        "title": "Write"
+      }
+    }
+  }
+}

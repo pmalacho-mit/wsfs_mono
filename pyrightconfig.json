@@ -1,0 +1,51 @@
+{
+  // The import root is the directory ABOVE this project, so each package can
+  // reach its vendored siblings by relative import -- the same shape a
+  // consumer installs into. `samples/backend` is on the path because the tests
+  // drive wsfs through the sample host rather than through a fixture of their own.
+  "extraPaths": ["..", "samples/backend", "tests", "/usr/local/python/3.12.14/lib/python3.12/site-packages"],
+  "include": [
+    "wsfs_core_suede",
+    "wsfs_assistant_suede",
+    "wsfs_pytutor_suede",
+    "tests",
+    "samples/backend"
+  ],
+  "exclude": ["**/*.generated.*", "node_modules"],
+  "typeCheckingMode": "recommended",
+
+  // SQLAlchemy's expression surface is untyped: `aliased()`, `Row`, and the
+  // results of `session.exec` are all Any, and every column expression built
+  // from them inherits it. Turning these on reports the library, not this
+  // code -- and `col()` is already used everywhere it can restore a type.
+  "reportAny": false,
+  "reportExplicitAny": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownVariableType": false,
+
+  // `= Depends(...)` is how FastAPI declares a dependency, and `Field(...)`
+  // is how SQLModel declares a column.
+  "reportCallInDefaultInitializer": false,
+
+  // A long message split across lines is not a mistake.
+  "reportImplicitStringConcatenation": false,
+
+  "executionEnvironments": [
+    {
+      // A test asserts on effects, so discarding a call's result is the point,
+      // and pytest supplies fixture arguments by name rather than by type.
+      "root": "tests",
+      "reportUnusedCallResult": false,
+      "reportMissingParameterType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false
+    },
+    { "root": "wsfs_core_suede" },
+    { "root": "wsfs_assistant_suede" },
+    { "root": "wsfs_pytutor_suede" },
+    { "root": "samples/backend" }
+  ]
+}

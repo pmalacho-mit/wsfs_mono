@@ -1,0 +1,22 @@
+<script lang="ts">
+  import { Sweater } from "<path>/sweater-vest-suede";
+  import Component, { Model } from "<component>.svelte";
+
+  class Pocket {
+    model = $state<Model>()!;
+    constructor(model: Model) {
+      this.model = model;
+    }
+  }
+</script>
+
+<Sweater
+  name="<test name>"
+  body={async ({ set }) => {
+    const pocket = set(new Pocket(new Model()));
+  }}
+>
+  {#snippet vest({ model }: Pocket)}
+    <Component {model} />
+  {/snippet}
+</Sweater>

@@ -1,0 +1,17 @@
+{
+  "extends": "./.svelte-kit/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "allowJs": true,
+    "checkJs": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    // The browser half of sweater-vest imports types from its Node-side
+    // report driver, which spells its own imports with `.ts` because it runs
+    // under tsx. Nothing here emits, so the extension is only a spelling.
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  }
+}
