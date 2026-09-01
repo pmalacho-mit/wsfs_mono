@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained automatically
+; by the git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:pmalacho-mit/pierre-trees-svelte-suede.git
+	branch = release
+	commit = fc278f31fed391c105525b83447d001a38a21f81
+	parent = 2e9bfb2c78d95288b7a132b3c2558340ef172baf
+	method = merge
+	cmdver = 0.4.9

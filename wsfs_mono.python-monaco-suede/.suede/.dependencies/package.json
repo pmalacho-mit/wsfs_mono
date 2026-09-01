@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "@codingame/esbuild-import-meta-url-plugin": "^1.0.3",
+    "@codingame/monaco-vscode-files-service-override": "~20.2.1",
+    "@codingame/monaco-vscode-python-default-extension": "~20.2.1",
+    "browser-basedpyright": "1.39.10",
+    "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@~20.2.1",
+    "monaco-editor-wrapper": "~6.12.0",
+    "monaco-languageclient": "~9.11.0",
+    "vite-plugin-static-copy": "^3.1.0",
+    "vscode": "npm:@codingame/monaco-vscode-extension-api@~20.2.1",
+    "vscode-languageclient": "~9.0.1",
+    "vscode-languageserver-protocol": "~3.17.5",
+    "y-monaco": "^0.1.6",
+    "y-protocols": "^1.0.6"
+  }
+}
