@@ -9,3 +9,7 @@ https://github.com/pmalacho-mit/wsfs_python_suede
 https://github.com/pmalacho-mit/wsfs_assistant_suede
 
 https://github.com/pmalacho-mit/wsfs_pytutor_suede
+
+PRs:
+
+https://github.com/pmalacho-mit/pierre-trees-svelte-suede/pull/3
