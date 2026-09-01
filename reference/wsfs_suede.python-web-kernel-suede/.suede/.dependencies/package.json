@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@jupyterlab/nbformat": "^4.5.4",
+    "katex": "^0.16.28",
+    "nanoid": "^5.1.6",
+    "pyodide": "^0.29.3",
+    "vite": "^7.3.1",
+    "vite-plugin-static-copy": "^3.2.0"
+  }
+}

@@ -1,0 +1,330 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn-svelte/tailwind.css";
+@import "@fontsource-variable/inter";
+
+/**
+ * The components live in the published package, which is outside this app's
+ * root -- so Tailwind's automatic detection never reaches them and every
+ * utility they use is silently dropped. Explicit, and it has to be.
+ */
+@source "../";
+
+/**
+ * AND THE MARKDOWN RENDERER'S OWN CLASSES.
+ *
+ * `streamdown-svelte` draws the code blocks in an assistant's answer, and it
+ * names its utilities in its own `theme.js` rather than in any markup this
+ * project owns. Tailwind skips `node_modules` by default, so those class names
+ * were never generated -- and a class that does not exist does not announce
+ * itself, it just does nothing.
+ *
+ * What that cost: the copy and download buttons on every code block had
+ * `pointer-events-auto` on their container, which was dropped, so the
+ * `pointer-events-none` shell around them -- a class this project DOES use
+ * elsewhere, so it survived -- swallowed every click. The buttons were drawn,
+ * lit, enabled, and unreachable. The same dropping took `-mt-10`, which is
+ * what lifts them onto the header row, so they sat below it and left an empty
+ * bar with the language stranded on the left.
+ *
+ * A consumer who installs this package resolves its dependencies at their own
+ * path and will need the equivalent line for it.
+ */
+@source "../../../node_modules/streamdown-svelte/dist";
+
+/**
+ * A code block's controls belong to that code block.
+ *
+ * They ship as `sticky top-2`, which is right when the thing that scrolls is
+ * the code block -- you keep the buttons in reach while you scroll a long
+ * listing. Here the nearest scrolling ancestor is the whole TRANSCRIPT, so
+ * they detached from their block and floated at the top of the panel, over
+ * the heading, offering to copy whichever snippet happened to be underneath.
+ *
+ * Pinned back to the block. The negative margin they also carry is what lifts
+ * them onto the header row beside the language, which is where they were
+ * always meant to sit -- and why that row otherwise looked oddly empty.
+ */
+[data-streamdown="code-block-actions-shell"] {
+  position: static;
+}
+
+/**
+ * MATH, SIZED AND SPACED FOR WHERE IT ACTUALLY APPEARS.
+ *
+ * KaTeX ships defaults tuned for an article: `1.21em`, and `1em` of air above
+ * and below a display equation. Both are too generous here. The problem
+ * header is `text-sm` in a box capped at fourteen rem, so a formula at
+ * KaTeX's size stands a head above the sentence containing it and a display
+ * equation spends a seventh of the panel on margin.
+ *
+ * PLAIN CSS, KEYED OFF STREAMDOWN'S OWN DATA ATTRIBUTES, and it has to be
+ * both. `katex.min.css` arrives through a JS import, so it is UNLAYERED --
+ * which beats every rule in Tailwind's `utilities` layer no matter how
+ * specific, and quietly wins against any `[&_.katex]:...` written on the
+ * component. And these selectors are (0,2,0) against KaTeX's (0,1,0), so they
+ * win on specificity rather than on which stylesheet happens to land second.
+ */
+
+[data-streamdown-inline-math] .katex {
+  /* Down from 1.21em, not to 1em. Maths glyphs read smaller than the UI face
+     beside them, so some of that bump is real; all of it is too much. */
+  font-size: 1.1em;
+}
+
+[data-streamdown-block-math] .katex {
+  /* A shade larger than inline: a display equation is the thing being looked
+     at, not something passed through in a sentence. */
+  font-size: 1.15em;
+}
+
+[data-streamdown-block-math] .katex-display {
+  margin: 0.7em 0;
+}
+
+/**
+ * The scroller streamdown puts around a display equation, taught to centre.
+ *
+ * `safe` is the whole point. A plain `center` looks right until the equation
+ * is wider than the panel, and then it centres the overflow too -- the left
+ * end goes out past the edge where no amount of scrolling reaches it, because
+ * scrolling only ever moves toward the right. `safe center` centres while it
+ * fits and falls back to flush-left the moment it does not, which is the one
+ * case where being able to read the start of the line matters most.
+ *
+ * A browser too old for `safe` drops the declaration and gets flex's default
+ * flush-left -- the fallback we would have chosen anyway.
+ */
+[data-streamdown-block-math] > div {
+  display: flex;
+  justify-content: safe center;
+  /* `overflow-x: auto` makes the other axis `auto` as well, so a tall
+     expression -- a fraction, a sum with limits -- sits right against the
+     edge of its own scroller. This is the room it needs not to. */
+  padding-block: 0.25rem;
+  scrollbar-width: thin;
+}
+
+/**
+ * Tighter still where the box is smallest.
+ *
+ * The problem header is capped and scrolled so the editor keeps the panel;
+ * every rem a margin takes is a rem of the problem the reader cannot see
+ * without scrolling for it.
+ */
+[data-region="problem-header-body"] [data-streamdown-block-math] .katex-display {
+  margin: 0.45em 0;
+}
+
+/**
+ * Don't hand the screen reader's copy to the clipboard.
+ *
+ * KaTeX renders every expression twice -- MathML for assistive technology,
+ * HTML for eyes -- and hides the first with a clip-path rather than by taking
+ * it out of the document. A student selecting a problem statement to paste
+ * into a question therefore copies both, and gets the formula twice running.
+ * Unselectable, not undisplayed: screen readers still read it.
+ */
+.katex-mathml {
+  user-select: none;
+}
+
+/**
+ * The sizes this app names that Tailwind's scale has no word for.
+ *
+ * Declared rather than written into the markup as `text-[0.68rem]`, because
+ * the block below has to be able to answer for every size a panel draws --
+ * and a literal in a class attribute is one it cannot reach. See
+ * `textsize.svelte.ts`.
+ */
+:root {
+  /* Panel headings, and the strip over a run's output. */
+  --text-2xs: 0.68rem;
+  /* The path a terminal names, and a version's timestamp. */
+  --text-2xs-mono: 0.7rem;
+  /* What a run actually printed. */
+  --text-xs-mono: 0.78rem;
+}
+
+/**
+ * HOW BIG THE TEXT IN ONE PANEL IS.
+ *
+ * A panel that carries `data-text-scale` and sets `--wsfs-text-scale` draws
+ * every piece of text inside it at that multiple of its usual size. What is
+ * NOT scaled is everything else -- padding, borders, icons, the panel's own
+ * width -- which is the whole difference between this and the browser's zoom:
+ * the three panels still fit beside each other afterwards.
+ *
+ * It works by restating Tailwind's own font-size scale, because `text-sm` and
+ * the rest compile to `font-size: var(--text-sm)` -- so a subtree that says
+ * what `--text-sm` means there has said it for every utility, every shadcn
+ * component and every line of rendered markdown underneath it, none of which
+ * has to know this exists.
+ *
+ * MULTIPLIED REM RATHER THAN EM, and that is not a preference. `em` would
+ * compound: a `text-2xs` strip inside a `text-xs-mono` output block would be
+ * a fraction of a fraction, so the panel would not be scaled, it would be
+ * redesigned. Each of these stays a fixed multiple of the document's size,
+ * exactly as it is now, times the one number.
+ *
+ * The line heights are deliberately absent: Tailwind writes them as ratios
+ * (`calc(1.25 / 0.875)`), so they follow the size they belong to on their own.
+ */
+[data-text-scale] {
+  /* Anything that inherits its size rather than naming one. */
+  font-size: calc(1rem * var(--wsfs-text-scale, 1));
+
+  --text-2xs: calc(0.68rem * var(--wsfs-text-scale, 1));
+  --text-2xs-mono: calc(0.7rem * var(--wsfs-text-scale, 1));
+  --text-xs-mono: calc(0.78rem * var(--wsfs-text-scale, 1));
+
+  --text-xs: calc(0.75rem * var(--wsfs-text-scale, 1));
+  --text-sm: calc(0.875rem * var(--wsfs-text-scale, 1));
+  --text-base: calc(1rem * var(--wsfs-text-scale, 1));
+  --text-lg: calc(1.125rem * var(--wsfs-text-scale, 1));
+  --text-xl: calc(1.25rem * var(--wsfs-text-scale, 1));
+  --text-2xl: calc(1.5rem * var(--wsfs-text-scale, 1));
+  --text-3xl: calc(1.875rem * var(--wsfs-text-scale, 1));
+}
+
+/**
+ * WHAT A PANEL SHOWS GROWS. WHAT DRIVES THE PANEL DOES NOT.
+ *
+ * The strip that names a panel and the controls on it are inside the panel,
+ * so without this they scale with everything else -- and a sidebar at 250%
+ * spends a row 170px wide on the word "EXPLORER" at 27px, pushing the very
+ * slider that got it there off the end of its own heading. Somebody who
+ * overshoots then cannot get back.
+ *
+ * So chrome says so, and is drawn at the size it always was. It reads as a
+ * value on the same attribute because that is exactly what it is: a subtree
+ * whose scale is one, nested inside one whose scale is not.
+ */
+[data-text-scale="chrome"] {
+  --wsfs-text-scale: 1;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.145 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.145 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.145 0 0);
+	--primary: oklch(0.205 0 0);
+	--primary-foreground: oklch(0.985 0 0);
+	--secondary: oklch(0.97 0 0);
+	--secondary-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.97 0 0);
+	--muted-foreground: oklch(0.556 0 0);
+	--accent: oklch(0.97 0 0);
+	--accent-foreground: oklch(0.205 0 0);
+	--destructive: oklch(0.577 0.245 27.325);
+	--border: oklch(0.922 0 0);
+	--input: oklch(0.922 0 0);
+	--ring: oklch(0.708 0 0);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--radius: 0.625rem;
+	--sidebar: oklch(0.985 0 0);
+	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.922 0 0);
+	--sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+	--background: oklch(0.145 0 0);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.205 0 0);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.205 0 0);
+	--popover-foreground: oklch(0.985 0 0);
+	--primary: oklch(0.922 0 0);
+	--primary-foreground: oklch(0.205 0 0);
+	--secondary: oklch(0.269 0 0);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.269 0 0);
+	--muted-foreground: oklch(0.708 0 0);
+	--accent: oklch(0.269 0 0);
+	--accent-foreground: oklch(0.985 0 0);
+	--destructive: oklch(0.704 0.191 22.216);
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.556 0 0);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+	--font-sans: 'Inter Variable', sans-serif;
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	html {
+		@apply font-sans;
+	}
+}

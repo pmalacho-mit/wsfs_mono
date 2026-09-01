@@ -1,0 +1,53 @@
+name: wsfs-tests
+
+services:
+  test-backend:
+    build:
+      context: ..
+      dockerfile: ./tests/Dockerfile
+    environment:
+      DB_HOST: test-db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres
+      # Goes nowhere. The sample host refuses to be built without one, and
+      # nothing in this suite reaches the collaboration server -- the keeper's
+      # tests hand it a fake.
+      LIVEBLOCKS_SECRET_KEY: sk_test_not-a-real-key
+    # Live source, so editing a file needs no rebuild. Read-only so the container
+    # can't drop __pycache__ / .pytest_cache into the working tree.
+    volumes:
+      - ../release:/app/wsfs_suede/release:ro
+      - ../wsfs_suede__sqlmodel_utils_suede:/app/wsfs_suede/wsfs_suede__sqlmodel_utils_suede:ro
+      - ../tests:/app/wsfs_suede/tests:ro
+      - ../samples:/app/wsfs_suede/samples:ro
+    depends_on:
+      test-db:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  test-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    # The data is thrown away after every run, so keep it in RAM and drop the
+    # durability guarantees we aren't using.
+    tmpfs:
+      - /var/lib/postgresql/data
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+    healthcheck:
+      # -h forces a TCP check. During init postgres runs a temporary server on
+      # the unix socket only, and a plain `pg_isready` reports ready against it.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@pierre/theme": "^2.0.0",
+    "@pierre/trees": "^1.0.0-beta.6",
+    "@shikijs/themes": "^4.4.3",
+    "svelte": "^5.43.5"
+  }
+}

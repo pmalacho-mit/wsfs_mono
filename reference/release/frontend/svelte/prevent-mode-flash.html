@@ -1,0 +1,17 @@
+<script>
+  /**
+   * Settled before the first paint. Nothing renders on a server here, so
+   * the bundle that would otherwise decide this arrives a frame late --
+   * and the page flashes light on its way to dark. The key is
+   * mode-watcher's own, which takes over from here.
+   */
+  (() => {
+    const chosen = localStorage.getItem("mode-watcher-mode") ?? "system";
+    const dark =
+      chosen === "dark" ||
+      (chosen === "system" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  })();
+</script>

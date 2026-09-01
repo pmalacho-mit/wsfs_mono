@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "@storybook/test": "^8.6.14",
+    "@types/dockerode": "^4.0.1",
+    "@types/node": "^25.9.1",
+    "dockerode": "^5.0.0",
+    "dockview": "^4.11.0",
+    "dockview-core": "^4.11.0",
+    "html-to-image": "^1.11.13",
+    "svelte": "^5.43.5",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  }
+}

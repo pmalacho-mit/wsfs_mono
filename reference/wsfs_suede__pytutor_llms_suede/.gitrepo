@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained automatically
+; by the git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:mitmedialab/pytutor-llms-suede.git
+	branch = release
+	commit = 476ba7fa91dfbe06ae3f33fc60f7bc25d7e0f248
+	parent = 953ae9869b83ad2467266e2071b8aaa7ba07b11a
+	method = merge
+	cmdver = 0.4.9

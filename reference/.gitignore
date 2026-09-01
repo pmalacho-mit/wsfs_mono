@@ -1,0 +1,6 @@
+**/node_modules
+**/.svelte-kit
+**/frontend/build
+__pycache__/
+.pytest_cache/
+**/.env

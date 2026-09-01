@@ -1,0 +1,11 @@
+# What `release/backend/llm.py` needs, and nothing else here does.
+#
+# Separate because the seam is: `release/backend/tutor.py` defines a tutor as
+# one method and imports none of this, so a host with its own tutor -- or a
+# test with a scripted one -- installs none of it. The sample host installs it
+# because it wants the real thing when there is a key for it.
+anthropic
+openai
+instructor
+python-dotenv
+datamodel-code-generator
