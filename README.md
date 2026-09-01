@@ -12,4 +12,6 @@ https://github.com/pmalacho-mit/wsfs_pytutor_suede
 
 PRs:
 
+https://github.com/pmalacho-mit/wsfs_suede/pull/6
+
 https://github.com/pmalacho-mit/pierre-trees-svelte-suede/pull/3
