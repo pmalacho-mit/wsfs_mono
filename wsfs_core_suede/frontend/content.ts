@@ -60,12 +60,30 @@ export const cache = (fetch: Fetch): Content => {
   const fetched = async (entry: Metadata, version: Version) => {
     const already = arriving.get(version);
     if (already) return already;
-    const request = fetch(entry.id, version).then((content) => {
-      byVersion.set(version, content);
-      byEntry.set(entry.id, version);
-      arriving.delete(version);
-      return content;
-    });
+    /**
+     * One request per version, however many callers want it -- and the entry
+     * in `arriving` is dropped WHETHER OR NOT it succeeded.
+     *
+     * Dropping it only on success is the same line of code minus a `finally`,
+     * and it fails in a way nobody would guess from reading it: a fetch that
+     * rejects stays in the map for ever, so every later read of that version
+     * is handed the same settled rejection and never reaches the network
+     * again. One refused request -- a blip, a proxy hiccup, a 503 from a
+     * server shedding load it will not be shedding a second later -- and that
+     * version of that file is unreadable in this tab until somebody reloads
+     * the page.
+     *
+     * The transport retries before it gives up, so arriving here means the
+     * server was unreachable for several seconds. That is worth forgetting
+     * and asking again, which is exactly what forgetting it allows.
+     */
+    const request = fetch(entry.id, version)
+      .then((content) => {
+        byVersion.set(version, content);
+        byEntry.set(entry.id, version);
+        return content;
+      })
+      .finally(() => arriving.delete(version));
     arriving.set(version, request);
     return request;
   };

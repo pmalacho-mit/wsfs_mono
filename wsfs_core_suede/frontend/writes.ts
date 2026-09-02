@@ -57,6 +57,23 @@ export type Wiring = {
   send: (request: Submitted) => Promise<Response>;
   /** Recompute and announce -- the same door every other state change uses. */
   announced: () => void;
+  /**
+   * Anything that has to reach the server before a write for this entry can,
+   * or `undefined` when there is nothing to wait for.
+   *
+   * In practice this is one thing: the entry's own CREATE. Creates do not go
+   * through this pump -- they are sent the moment they are minted -- and the
+   * chain this drains holds writes alone, so without this the two have no
+   * order between them at all. A write that overtakes its create is refused
+   * `no such entry`, and the text somebody typed goes with it.
+   *
+   * WAITED ON HERE, at the point of SENDING, and deliberately not earlier.
+   * The write is already captured in the outbox by the time this is asked --
+   * that is what makes it survive a reload and be replayed by Initialize.
+   * Holding it back before the capture would be trading one lost write for a
+   * worse one.
+   */
+  landed?: (entry: Id) => Promise<unknown> | undefined;
   /** Hold what a queued write says the file contains, under its own token. */
   remembered: (version: Transaction, payload: Payload) => void;
   /** The confirmed content token for an entry: what the stream last said. */
@@ -332,6 +349,20 @@ export const pump = (wiring: Wiring): Pump => {
     draining.add(entry);
     try {
       for (;;) {
+        /**
+         * Let the entry exist before writing to it.
+         *
+         * Everything queued is already written down, so this delays sending
+         * and loses nothing: a reload replays the outbox whether or not the
+         * create had been answered by the time the tab went away.
+         *
+         * Failure is not waited out twice. A create that was refused leaves
+         * the writes behind it with nothing to attach to, and they are
+         * refused in their turn and reported -- which is the answer, not a
+         * reason to hold them here for ever.
+         */
+        await wiring.landed?.(entry)?.catch(() => undefined);
+
         tidy();
         const chain = queue.chain(entry);
         const at = chain.findIndex(

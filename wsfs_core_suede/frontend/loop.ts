@@ -38,7 +38,16 @@ export type Cycle = {
 
 export type Loop = { stop: () => void; nudge: () => void };
 
-const jittered = (delay: number) => delay / 2 + Math.random() * (delay / 2);
+/**
+ * Somewhere in the back half of `delay`.
+ *
+ * EXPORTED because the transport backs off too, and two clients that agree on
+ * how long to wait and disagree on how to spread it out are two clients that
+ * still arrive together. Everything that retries in this package spreads
+ * itself the same way.
+ */
+export const jittered = (delay: number) =>
+  delay / 2 + Math.random() * (delay / 2);
 
 const sleep = (ms: number) => new Promise<void>((wake) => setTimeout(wake, ms));
 

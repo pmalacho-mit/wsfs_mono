@@ -1,5 +1,18 @@
 export type Config = { idleMs: number; maxWaitMs: number };
 
+export type Options = Partial<Config> & {
+  /**
+   * Whether pending work is flushed when the page is hidden or unloaded.
+   *
+   * True is right for anything that is somebody's WORK -- a save held back a
+   * few seconds must not be lost to a closing tab. It is backwards for work
+   * that only exists to be fast, where flushing on hide fires a burst of
+   * requests for results nobody is now going to read, at the moment the user
+   * has left. See `warming.ts`.
+   */
+  flushWhenHidden?: boolean;
+};
+
 type Timer = ReturnType<typeof setTimeout>;
 
 type Entry = {
@@ -24,9 +37,9 @@ export class MappedDebouncer<T> {
   #disposed = false;
   readonly #opts: Config;
 
-  constructor(opts: Partial<Config> = {}) {
+  constructor({ flushWhenHidden = true, ...opts }: Options = {}) {
     this.#opts = MappedDebouncer.validateConfig({ ...DEFAULTS, ...opts });
-    this.#detach = this.#attachTeardownListeners();
+    this.#detach = flushWhenHidden ? this.#attachTeardownListeners() : () => {};
   }
 
   get size(): number {

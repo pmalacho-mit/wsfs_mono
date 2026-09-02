@@ -16,7 +16,14 @@ import type {
   Transaction,
   Version,
 } from "./contract";
-import { paged, requesting, type Authorized } from "./requests";
+import {
+  paged,
+  REPLAYABLE,
+  requesting,
+  type Authorized,
+  type Reauthorized,
+  type Retrying,
+} from "./requests";
 
 export type { Authorized };
 
@@ -119,44 +126,74 @@ const read = async (body: ReadableStream<Uint8Array>, reading: Reading) => {
   }
 };
 
-export const http = (base: string, authorize: Authorized): Transport => {
-  const { workspaces, send, posted, json } = requesting(base, authorize);
+export const http = (
+  base: string,
+  authorize: Authorized,
+  reauthorize?: Reauthorized,
+  retrying?: Retrying,
+): Transport => {
+  const { workspaces, send, posted, json } = requesting(
+    base,
+    authorize,
+    reauthorize,
+    retrying,
+  );
   const at = (path: string) => `${base.replace(/\/$/, "")}${path}`;
 
   return {
     initialize: async (workspace, outbox) =>
       json<Snapshot>(
+        /**
+         * NOT replayable, though it plainly is: `loop.ts` already re-enters
+         * Initialize on every failure, backing off 500ms to 30s and resetting
+         * only once a stream is established. Retrying here as well would send
+         * four Initializes per loop cycle instead of one -- quadrupling
+         * demand in the window a shedding server least wants it, and putting
+         * the outbox on the wire four times to learn the same thing.
+         *
+         * The stream is left out of `send` entirely for the same reason.
+         */
         await posted(`${workspaces(workspace)}/initialize`, { outbox }),
       ),
 
     submit: async (workspace, request, { keepalive = false } = {}) =>
       json<Response>(
         await posted(`${workspaces(workspace)}/transactions`, request, {
+          ...REPLAYABLE,
           keepalive,
         }),
       ),
 
     cleared: async (workspace, transactions) => {
-      await posted(`${workspaces(workspace)}/drafts/cleared`, { transactions });
+      await posted(
+        `${workspaces(workspace)}/drafts/cleared`,
+        { transactions },
+        REPLAYABLE,
+      );
     },
 
     bringRoomUpToFile: async (workspace, entry) =>
       (
         await json<{ base: Version | null }>(
-          await posted(`${workspaces(workspace)}/rooms/${entry}`, {}),
+          await posted(`${workspaces(workspace)}/rooms/${entry}`, {}, REPLAYABLE),
         )
       ).base,
 
     warmRoom: async (workspace, entry) => {
-      await posted(`${workspaces(workspace)}/rooms/${entry}/warm`, {});
+      await posted(`${workspaces(workspace)}/rooms/${entry}/warm`, {}, REPLAYABLE);
     },
 
     roomStored: async (workspace, entry, version) => {
-      await posted(`${workspaces(workspace)}/rooms/${entry}/stored`, { version });
+      await posted(
+        `${workspaces(workspace)}/rooms/${entry}/stored`,
+        { version },
+        REPLAYABLE,
+      );
     },
 
     handOver: async (workspace, entry, update) => {
       await send(`${workspaces(workspace)}/rooms/${entry}/updates`, {
+        ...REPLAYABLE,
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
         body: update as BodyInit,

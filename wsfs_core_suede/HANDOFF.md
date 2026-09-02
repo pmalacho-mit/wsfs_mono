@@ -152,10 +152,19 @@ main/
       Persistence.test.svelte
 ```
 
-`samples/frontend/src/lib/Reclaim.test.svelte` in the monorepo is the model, and
-it is worth copying almost verbatim: no `vest` snippet beyond a `<pre>` for the
-screenshot, a body that is straight TypeScript, and assertions about a real
-store.
+**Most of this already exists.** `samples/frontend/src/lib/core/` in the
+monorepo holds four components covering exactly this ground — `transport` (13),
+`warming` (10), `writes` (4) and `content` (3) — and `Reclaim.test.svelte`
+covers the store. Port those first; they are straight TypeScript bodies with no
+`vest` snippet beyond a `<pre>` for the screenshot, and their imports are the
+only thing that changes.
+
+Two of that transport file's scenarios are NOT core's and live elsewhere in the
+monorepo: one asserts the tutor's `ask` is never retried, the other the same for
+a study observation. Both routes belong to other packages now, so the tests sit
+beside them (`lib/assistant/retry.test.svelte`, `lib/pytutor/retry.test.svelte`).
+If you are setting up core alone, leave them out — but keep the property they
+protect in mind, because it is core's `requests.ts` that decides it.
 
 **What to cover there, in priority order:**
 

@@ -408,13 +408,28 @@ async def place_within(
 
 
 WARMING_AT_ONCE = 8
-"""How many of a clone's rooms are filled concurrently.
+"""How many rooms are filled concurrently.
 
 Filling one is three sequential calls to the collaboration server and about
 two seconds, so a thousand-file clone done one at a time would take half an
 hour -- and done all at once would open a thousand connections to a service
-that has an opinion about that. Neither number is tuned; this one is small
-enough to be polite and large enough that the wall clock is not the sum.
+that has an opinion about that. Not tuned; small enough to be polite and large
+enough that the wall clock is not the sum.
+"""
+
+WARMING_GATE = asyncio.Semaphore(WARMING_AT_ONCE)
+"""That bound, held ACROSS THE PROCESS rather than per call.
+
+One semaphore rather than one per call, because the alternative bounds the
+wrong thing. `warmed` is awaited inside `add_files` and inside a clone, so a
+per-call gate lets N concurrent placements hold N times this many database
+sessions -- while occupying N slots of the admission gate, which sizes its
+reserve believing a slot costs about one connection. Five placements at once
+would want some forty-five connections and the pool would empty with the gate
+wide open.
+
+Global, it is a fact the reserve in `utils.admission` can actually be sized
+against.
 """
 
 
@@ -435,10 +450,8 @@ async def warmed(backend: Backend, entries: Sequence[UUID]) -> None:
     clone would be trading something durable for something that is only ever
     an optimisation.
     """
-    gate = asyncio.Semaphore(WARMING_AT_ONCE)
-
     async def fill(entry: UUID) -> None:
-        async with gate:
+        async with WARMING_GATE:
             _ = await backend.keeper.ensure(str(entry))
 
     _ = await asyncio.gather(
@@ -472,7 +485,13 @@ async def content_response(
         )
     if isinstance(held, models.text_content):
         body = TextContentResponse(
-            content=await backend.schema.text.at(session, held.entry_id, held.position),
+            # `committed` and not `at`: everything reaching here was resolved
+            # out of a read session, so it has landed -- and this is the route
+            # a client replaying a backlog hits once per version it missed,
+            # which is the whole reason reconstructions are worth keeping.
+            content=await backend.schema.text.committed(
+                session, held.entry_id, held.position
+            ),
             version=held.id,
         )
         return JSONResponse(

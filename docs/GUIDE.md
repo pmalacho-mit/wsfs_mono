@@ -195,6 +195,16 @@ times out waiting for `dirty` to clear; the round it dies on moves between
 runs, so it is a timing question in the store path rather than a defect with a
 single cause. Neither is fixed by a key.
 
+## Known open failure
+
+`Sample` › "a person editing through the real UI loses nothing, round after
+round" fails about one run in five, with the file saying a line twice. It is
+DIAGNOSED and unfixed: carrying rebases the file's diff onto a room that
+already holds part of it. `tests/core/rooms.py` reproduces it every time as a
+strict `xfail`, and `docs/a-line-said-twice.md` has the mechanism and the three
+possible fixes. **A red soak run is not automatically flake** — check whether
+`got` contains a doubled line before re-running.
+
 ## Where to put a new thing
 
 Ask which package could not do its job without it.

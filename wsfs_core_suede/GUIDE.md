@@ -147,6 +147,11 @@ people:
 - `indexed.ts` / `outbox-store.ts` / `reclaim.ts` — the queue survives a page load, so
   it lives in IndexedDB; `reclaim` is what happens when the browser runs out of
   room for work that has not been sent.
+- `warming.ts` — content pulled into the cache before anybody asks. Purely an
+  optimisation, which is why every request it makes has to justify itself: a
+  burst of writes to one file collapses to a single fetch of the version it
+  ended on, and the whole thing is bounded so opening a workspace does not
+  look like an attack.
 - `stash.ts` — the last thing typed, written down somewhere that *cannot fail*,
   for the moment the page is torn down mid-write.
 - `room.ts` — the room contracts, framework-free. `Provider`, `Enter`, `Host`,
@@ -154,7 +159,10 @@ people:
   in the package that imports one, and `index.ts` deliberately re-exports no
   vendor's client.
 - `requests.ts` — one base URL and one auth story, shared with the satellite
-  packages that mount routes over the same prefix.
+  packages that mount routes over the same prefix. Retries live here for that
+  reason: a request is resent only when its call site says it may be —
+  `GET`/`HEAD`/`PUT` by default, a `POST` only when it opts in, because asking
+  the tutor twice starts answering twice.
 - `override.ts` — `FileOverride`, the door every write to a file goes through.
   The *type* is here and every implementation is elsewhere: read priority is
   core's concern, but only a consumer knows it is holding a buffer somebody is
