@@ -18,6 +18,7 @@ from wsfs_mono.wsfs_core_suede.backend.rooms import (
     Settled,
     Standing,
     carried,
+    closing,
     plan,
     seeded,
     standing_of,
@@ -130,35 +131,46 @@ def test_a_carried_write_lands_once_however_often_it_arrives():
     assert applied(live, update, update).count("from a script") == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "OPEN DEFECT -- see docs/a-line-said-twice.md. Carrying rebases the "
-        "file's diff onto the room, and rebasing an insert the room ALREADY "
-        "holds inserts it a second time. `_closing` only declines when the "
-        "room equals the file; it has nothing to say about a room that holds "
-        "part of what the diff would add."
-    ),
-)
 def test_a_room_that_already_holds_the_change_is_not_told_it_twice():
-    """The failure the soak scenario catches about one run in five.
+    """The failure the soak scenario caught about one run in five.
 
     HOW A ROOM GETS HERE. A member types `r0 `, stores it, and the note that
-    would move the room's base to that version is lost -- `roomStored` is the
-    one write in this system whose loss is deliberately tolerated, on the
-    reasoning that the host compares the room with the file before carrying
-    anything. Then the same person types `r1 ` and stores again.
+    moves the room's base to that version has not arrived yet -- `stored` is
+    fire-and-forget, so every save opens a window where the host believes the
+    room is one version further back than it is. Then the same person types
+    `r1 ` and stores again.
 
-    The room now holds `r0 `, its base still says the file was empty, and the
-    file says `r0 r1 `. The room equals neither end, so nothing declines the
-    carry, and the diff -- which says "insert r0 r1 " -- is rebased onto a
-    room that already has `r0 `.
+    The room holds `r0 `, the base still says the file was empty, and the file
+    says `r0 r1 `. Carrying "what the file gained since empty" onto a room that
+    already has `r0 ` used to say that line twice.
     """
     live = a_room("soak.md\nr0 ")
     change = Change(before="soak.md\n", after="soak.md\nr0 r1 ")
 
-    update = carried(live, change)
+    update = closing(live, change)
+    assert update is not None
     assert applied(live, update) == "soak.md\nr0 r1 "
+
+
+def test_a_room_that_already_says_it_is_told_nothing():
+    live = a_room("soak.md\nr0 r1 ")
+    assert closing(live, Change(before="soak.md\n", after="soak.md\nr0 r1 ")) is None
+
+
+def test_unstored_typing_is_not_carried_away():
+    """The reason the guard asks about insertions rather than just equality.
+
+    This room holds work the file has never seen, so it CANNOT be reached from
+    the file's text by inserting alone -- getting there would mean deleting
+    what somebody is in the middle of typing. That is what keeps this on the
+    old path, carrying from `before`.
+    """
+    live = a_room("hello\nstill typing")
+    update = closing(live, Change(before="hello\n", after="hello\nfrom a script\n"))
+    assert update is not None
+    said = applied(live, update)
+    assert "still typing" in said
+    assert said.count("from a script") == 1
 
 
 def test_carrying_keeps_work_the_file_has_never_seen():

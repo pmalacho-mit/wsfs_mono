@@ -24,7 +24,7 @@ from .rooms import (
     Rebase,
     Seed,
     Settled,
-    carried,
+    closing,
     plan,
     seeded,
     standing_of,
@@ -180,22 +180,9 @@ class Keeper:
             after=now.text,
         )
         live = await self._collaboration.document(entry)
-        update = self._closing(live, change)
+        update = closing(live, change)
         if update is not None:
             await self._collaboration.send(entry, update)
-
-    def _closing(self, live: bytes, change: Change) -> bytes | None:
-        """What to send, decided against the read it is built on.
-
-        The decision was taken on an EARLIER read, and a room that caught up in
-        between already holds what this was going to insert. Inserting it again
-        is the doubling the whole design exists to prevent, and a CRDT cannot
-        notice that two inserts say the same thing -- so the question is asked
-        once more, here, where the answer cannot go stale.
-        """
-        if standing_of(live, None).text == change.after:
-            return None
-        return carried(live, change)
 
 
 @final

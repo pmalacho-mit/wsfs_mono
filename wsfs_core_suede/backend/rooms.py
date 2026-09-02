@@ -133,6 +133,53 @@ def seeded(text: str) -> bytes:
     return doc.get_update()
 
 
+def _only_adds(before: str, after: str) -> bool:
+    """Whether `after` can be reached from `before` by inserting alone.
+
+    Which is to say: everything `before` holds is still in `after`, in order.
+    Cheap, and it answers the only question the guard below needs.
+    """
+    return all(op != "-" for op, _ in diff(before, after, timelimit=0, checklines=False))
+
+
+def closing(live: bytes, change: Change) -> bytes | None:
+    """What to send the room, decided against the room as it stands NOW.
+
+    THE DECISION WAS TAKEN ON AN EARLIER READ, and a room that caught up in
+    between already holds what this was going to insert. Inserting it again is
+    the doubling the whole design exists to prevent, and a CRDT cannot notice
+    that two inserts say the same thing -- so the question is asked once more,
+    here, where the answer cannot go stale.
+
+    Nothing to do when the room already says what the file says.
+
+    CARRIED FROM THE ROOM, not from `change.before`, when the room's text is
+    reachable from the file's by inserting alone. That condition is exactly
+    "everything the room holds is already in the file", so diffing from the
+    room can only insert what the room lacks -- and cannot say a second time
+    something it already has.
+
+    It is the case a stale `base` produces. `stored` is told where a room
+    stands as a fire-and-forget note, so between a write landing and that note
+    arriving the host believes the room is one version further back than it
+    is. A carry decided in that window computes what the file gained since a
+    version the room has ALREADY got, and rebasing that onto the room says
+    those lines twice. `docs/a-line-said-twice.md`.
+
+    ANYWHERE ELSE, the old base stands. A room holding work the file has never
+    seen -- somebody typing right now -- cannot be reached from the file by
+    inserting alone, because their unstored text would have to be deleted to
+    get there. Those carry from `change.before` exactly as before, which is
+    what keeps that typing out of the diff.
+    """
+    room = standing_of(live, None).text
+    if room == change.after:
+        return None
+    if _only_adds(room, change.after):
+        change = Change(before=room, after=change.after)
+    return carried(live, change)
+
+
 def carried(live: bytes, change: Change) -> bytes:
     """An update taking the room from what it holds to what the file now says.
 

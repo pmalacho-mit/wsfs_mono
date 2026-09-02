@@ -198,12 +198,15 @@ single cause. Neither is fixed by a key.
 ## Known open failure
 
 `Sample` › "a person editing through the real UI loses nothing, round after
-round" fails about one run in five, with the file saying a line twice. It is
-DIAGNOSED and unfixed: carrying rebases the file's diff onto a room that
-already holds part of it. `tests/core/rooms.py` reproduces it every time as a
-strict `xfail`, and `docs/a-line-said-twice.md` has the mechanism and the three
-possible fixes. **A red soak run is not automatically flake** — check whether
-`got` contains a doubled line before re-running.
+round" fails about one run in five, with the file saying a line twice. The root
+cause is in `docs/a-line-said-twice.md`: the client stores text the
+collaboration server has not got yet, so the host carries it into the room and
+the client's own copy arrives after it.
+
+**Two different failures wear that test's name** — text arriving twice, and
+text never arriving. A pass/fail count cannot tell them apart, and four
+measurements were taken across the mixture before anybody classified it.
+Compare the length of `got` against `wanted` before comparing any rates.
 
 ## Where to put a new thing
 
